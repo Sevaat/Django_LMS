@@ -14,7 +14,7 @@ class Course(models.Model):
         ordering = ["name"]
 
     def __str__(self) -> Any:
-        return self.email
+        return self.name
 
 
 class Lesson(models.Model):
