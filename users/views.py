@@ -1,10 +1,29 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.viewsets import ModelViewSet
 
 from users.filters import PaymentFilter
-from users.models import Payment
-from users.serializers import PaymentSerializer
+from users.models import Payment, User
+from users.serializers import PaymentSerializer, UserProfileSerializer
+
+
+class UserViewSet(ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserProfileSerializer
+
+    def get_permissions(self):
+        if self.action in ("update", "partial_update", "destroy"):
+            return [IsAuthenticated()]
+        if self.action in ("list", "retrieve", "create"):
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return User.objects.all()
+        return User.objects.filter(pk=user.pk)
 
 
 class PaymentViewSet(ModelViewSet):
