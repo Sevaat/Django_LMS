@@ -33,7 +33,7 @@ class Lesson(models.Model):
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
-        verbose_name="Категория продукта",
+        verbose_name="Курс",
         help_text="Укажите принадлежность к курсу",
     )
 

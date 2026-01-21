@@ -12,6 +12,7 @@ djangorestframework = "^3.16.1"
 dotenv = "^0.9.9"
 psycopg2-binary = "^2.9.11"
 pillow = "^12.1.0"
+django-filter = "^25.2"
 
 [tool.poetry.group.lint.dependencies]
 flake8 = "^7.3.0"
