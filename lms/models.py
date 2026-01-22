@@ -9,6 +9,14 @@ class Course(models.Model):
     image = models.ImageField(
         upload_to="course/preview", blank=True, null=True, verbose_name="Превью", help_text="Добавьте превью курса"
     )
+    owner = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Владелец",
+        help_text="Укажите владельца курса",
+    )
 
     class Meta:
         verbose_name = "Курс"
@@ -35,6 +43,14 @@ class Lesson(models.Model):
         null=True,
         verbose_name="Курс",
         help_text="Укажите принадлежность к курсу",
+    )
+    owner = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Владелец",
+        help_text="Укажите владельца урока",
     )
 
     class Meta:

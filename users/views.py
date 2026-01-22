@@ -1,6 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.generics import CreateAPIView
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
 from users.filters import PaymentFilter
@@ -32,5 +33,16 @@ class PaymentViewSet(ModelViewSet):
 
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = PaymentFilter
-    ordering_fields = ['pay_date']      # разрешаем сортировку по дате оплаты
-    ordering = ['pay_date']             # сортировка по умолчанию (по возрастанию)
+    ordering_fields = ["pay_date"]  # разрешаем сортировку по дате оплаты
+    ordering = ["pay_date"]  # сортировка по умолчанию (по возрастанию)
+
+
+class UserCreateAPIView(CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = (AllowAny,)
+
+    def perform_create(self, serializer):
+        user = serializer.save(is_active=True)
+        user.set_password(user.password)
+        user.save()
