@@ -12,5 +12,5 @@ class PaymentSerializer(ModelSerializer):
 class UserProfileSerializer(ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "phone", "avatar", "city")
-        read_only_fields = ("id", "email")
+        fields = "__all__"
+        read_only_fields = ("id",)
