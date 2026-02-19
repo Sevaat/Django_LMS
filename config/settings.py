@@ -24,7 +24,8 @@ REDIS_DB = os.getenv('REDIS_DB', '0')
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}')
 
-CELERY_TIMEZONE = 'UTC'
+TIME_ZONE = 'UTC'
+CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_ACCEPT_CONTENT = ['application/json']
@@ -33,18 +34,24 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_EXPIRES = 3600  # 1 hour
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
+    'check-inactive-users': {
+        'task': 'users.tasks.deactivate_inactive_users',
+        'schedule': crontab(hour=0, minute=0),
+    },
     'check-pending-payments': {
         'task': 'users.tasks.check_pending_payments',
-        'schedule': timedelta(minutes=30),
+        'schedule': timedelta(minutes=30),  # Каждые 30 минут
     },
     'clean-expired-subscriptions': {
         'task': 'users.tasks.clean_expired_subscriptions',
-        'schedule': timedelta(days=1),
+        'schedule': crontab(hour=2, minute=0),  # Каждый день в 2:00
     },
-    'send-course-update-notifications': {
-        'task': 'lms.tasks.send_course_update_notifications',
-        'schedule': timedelta(hours=1),
+    'send-daily-course-summary': {
+        'task': 'lms.tasks.send_daily_course_summary',
+        'schedule': crontab(hour=8, minute=0),  # Каждый день в 8:00
     },
 }
 
@@ -196,3 +203,45 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@lms.com')
 
 # Site URL for email links
 SITE_URL = os.getenv('SITE_URL', 'http://localhost:8000')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'logs/celery.log',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'celery': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'users.tasks': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

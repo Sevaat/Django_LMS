@@ -1,111 +1,203 @@
 from celery import shared_task
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 from datetime import timedelta
-import stripe
-from django.conf import settings
-from users.models import Payment, Subscription
-from users.services import StripeService
+import logging
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
+logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 @shared_task
-def check_pending_payments():
+def deactivate_inactive_users():
     """
-    Периодическая задача для проверки статуса ожидающих платежей
+    Периодическая задача для деактивации пользователей,
+    которые не заходили более месяца
     """
-    print("Начинаем проверку ожидающих платежей...")
+    logger.info("Начинаем проверку неактивных пользователей...")
 
-    # Находим все платежи в статусе 'pending', созданные более часа назад
-    one_hour_ago = timezone.now() - timedelta(hours=1)
-    pending_payments = Payment.objects.filter(
-        payment_status='pending',
-        pay_date__lte=one_hour_ago
+    # Вычисляем дату месяц назад
+    one_month_ago = timezone.now() - timedelta(days=30)
+
+    # Находим активных пользователей, которые не заходили более месяца
+    # или у которых last_login is None (никогда не заходили) и созданы более месяца назад
+    inactive_users = User.objects.filter(
+        is_active=True
+    ).filter(
+        # Пользователи с last_login старше месяца
+        last_login__lt=one_month_ago
+    ) | User.objects.filter(
+        # Пользователи, которые никогда не заходили и созданы более месяца назад
+        is_active=True,
+        last_login__isnull=True,
+        date_joined__lt=one_month_ago
     )
 
-    updated_count = 0
-    for payment in pending_payments:
-        try:
-            if payment.stripe_session_id:
-                # Получаем информацию о сессии из Stripe
-                session = stripe.checkout.Session.retrieve(payment.stripe_session_id)
+    # Исключаем суперпользователей и персонал (опционально)
+    # inactive_users = inactive_users.exclude(is_superuser=True).exclude(is_staff=True)
 
-                # Обновляем статус платежа
-                if session.payment_status == 'paid':
-                    payment.payment_status = 'succeeded'
-                elif session.payment_status == 'unpaid':
-                    payment.payment_status = 'failed'
-                elif session.status == 'expired':
-                    payment.payment_status = 'failed'
+    count = inactive_users.count()
 
-                payment.save()
-                updated_count += 1
-                print(f"Платеж {payment.id} обновлен, статус: {payment.payment_status}")
+    if count > 0:
+        logger.info(f"Найдено {count} неактивных пользователей")
 
-        except Exception as e:
-            print(f"Ошибка при проверке платежа {payment.id}: {str(e)}")
+        # Сохраняем информацию о блокируемых пользователях для логирования
+        deactivated_users = []
 
-    print(f"Проверка завершена. Обновлено {updated_count} платежей")
-    return f"Обновлено {updated_count} платежей"
+        for user in inactive_users:
+            user.is_active = False
+            user.save()
+            deactivated_users.append({
+                'id': user.id,
+                'email': user.email,
+                'last_login': str(user.last_login) if user.last_login else 'Never',
+                'date_joined': str(user.date_joined)
+            })
+            logger.info(f"Деактивирован пользователь: {user.email} (последний вход: {user.last_login})")
 
-
-@shared_task
-def clean_expired_subscriptions():
-    """
-    Периодическая задача для очистки истекших подписок
-    (если у подписок есть срок действия)
-    """
-    print("Начинаем очистку истекших подписок...")
-
-    total_subscriptions = Subscription.objects.count()
-    print(f"Всего активных подписок: {total_subscriptions}")
-
-    return f"Всего подписок: {total_subscriptions}"
+        logger.info(f"Деактивировано {count} пользователей")
+        return {
+            'status': 'success',
+            'deactivated_count': count,
+            'deactivated_users': deactivated_users
+        }
+    else:
+        logger.info("Неактивных пользователей не найдено")
+        return {
+            'status': 'success',
+            'deactivated_count': 0,
+            'message': 'No inactive users found'
+        }
 
 
 @shared_task
-def send_payment_reminder(payment_id):
+def deactivate_specific_user(user_id):
     """
-    Задача для отправки напоминания о неоплаченном платеже
+    Вспомогательная задача для деактивации конкретного пользователя
+    Можно вызывать вручную при необходимости
     """
     try:
-        payment = Payment.objects.get(id=payment_id)
-        if payment.payment_status == 'pending':
-            print(f"Отправка напоминания о платеже {payment_id} пользователю {payment.user.email}")
-            # Здесь можно добавить отправку email
-            return f"Напоминание отправлено для платежа {payment_id}"
-    except Payment.DoesNotExist:
-        print(f"Платеж {payment_id} не найден")
-        return f"Ошибка: платеж {payment_id} не найден"
+        user = User.objects.get(id=user_id, is_active=True)
+
+        # Проверяем, что это не суперпользователь
+        if user.is_superuser or user.is_staff:
+            logger.warning(f"Попытка деактивации суперпользователя/персонала: {user.email}")
+            return {
+                'status': 'error',
+                'message': 'Cannot deactivate superuser or staff'
+            }
+
+        user.is_active = False
+        user.save()
+
+        logger.info(f"Деактивирован пользователь: {user.email}")
+        return {
+            'status': 'success',
+            'user_id': user_id,
+            'email': user.email
+        }
+    except User.DoesNotExist:
+        logger.error(f"Пользователь с ID {user_id} не найден или уже неактивен")
+        return {
+            'status': 'error',
+            'message': f'User with id {user_id} not found or already inactive'
+        }
 
 
 @shared_task
-def process_stripe_webhook(event_data):
+def check_and_deactivate_inactive_users(days=30):
     """
-    Асинхронная обработка webhook от Stripe
+    Более гибкая версия задачи с возможностью указать количество дней
     """
-    event_type = event_data.get('type')
-    print(f"Обработка webhook события: {event_type}")
+    logger.info(f"Начинаем проверку пользователей, неактивных более {days} дней...")
 
-    if event_type == 'checkout.session.completed':
-        session = event_data.get('data', {}).get('object', {})
-        payment_id = session.get('client_reference_id')
+    cutoff_date = timezone.now() - timedelta(days=days)
 
-        if payment_id:
-            try:
-                payment = Payment.objects.get(id=payment_id)
-                payment.payment_status = 'succeeded'
-                payment.stripe_payment_intent_id = session.get('payment_intent')
-                payment.save()
-                print(f"Платеж {payment_id} успешно оплачен")
+    inactive_users = User.objects.filter(
+        is_active=True
+    ).filter(
+        last_login__lt=cutoff_date
+    ) | User.objects.filter(
+        is_active=True,
+        last_login__isnull=True,
+        date_joined__lt=cutoff_date
+    )
 
-                return f"Платеж {payment_id} обработан успешно"
-            except Payment.DoesNotExist:
-                print(f"Платеж {payment_id} не найден")
-                return f"Ошибка: платеж {payment_id} не найден"
+    # Исключаем суперпользователей и персонал
+    inactive_users = inactive_users.exclude(is_superuser=True).exclude(is_staff=True)
 
-    elif event_type == 'payment_intent.payment_failed':
-        payment_intent = event_data.get('data', {}).get('object', {})
-        print(f"Платеж не удался: {payment_intent.get('id')}")
+    count = inactive_users.count()
 
-    return f"Событие {event_type} обработано"
+    if count > 0:
+        # Блокируем пользователей
+        deactivated_ids = list(inactive_users.values_list('id', flat=True))
+        inactive_users.update(is_active=False)
+
+        logger.info(f"Деактивировано {count} пользователей")
+        return {
+            'status': 'success',
+            'deactivated_count': count,
+            'deactivated_ids': deactivated_ids,
+            'days_threshold': days
+        }
+
+    return {
+        'status': 'success',
+        'deactivated_count': 0,
+        'days_threshold': days
+    }
+
+
+@shared_task
+def send_warning_to_inactive_users(days_before_block=25):
+    """
+    Опционально: отправка предупреждения пользователям,
+    которые скоро будут заблокированы
+    """
+    from django.core.mail import send_mail
+    from django.conf import settings
+
+    warning_date = timezone.now() - timedelta(days=days_before_block)
+
+    users_to_warn = User.objects.filter(
+        is_active=True,
+        last_login__lt=warning_date
+    ) | User.objects.filter(
+        is_active=True,
+        last_login__isnull=True,
+        date_joined__lt=warning_date
+    )
+
+    # Исключаем суперпользователей и персонал
+    users_to_warn = users_to_warn.exclude(is_superuser=True).exclude(is_staff=True)
+
+    warned_count = 0
+    for user in users_to_warn:
+        try:
+            days_until_block = 30 - days_before_block
+            send_mail(
+                subject='Предупреждение о блокировке аккаунта',
+                message=f'''Здравствуйте, {user.email}!
+
+Вы не заходили в свой аккаунт более {days_before_block} дней.
+Если вы не зайдете в течение следующих {days_until_block} дней, 
+ваш аккаунт будет заблокирован.
+
+Для входа перейдите по ссылке: {settings.SITE_URL}/users/login/
+
+С уважением,
+Команда LMS Platform''',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            warned_count += 1
+            logger.info(f"Предупреждение отправлено пользователю: {user.email}")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке предупреждения пользователю {user.email}: {str(e)}")
+
+    return {
+        'status': 'success',
+        'warned_count': warned_count
+    }
