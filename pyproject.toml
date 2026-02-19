@@ -17,6 +17,9 @@ djangorestframework-simplejwt = "^5.5.1"
 ipython = "^9.9.0"
 coverage = "^7.13.4"
 drf-spectacular = "^0.29.0"
+stripe = "^14.3.0"
+drf-spectacular-sidecar = "^2026.1.1"
+django-cors-headers = "^4.9.0"
 
 [tool.poetry.group.lint.dependencies]
 flake8 = "^7.3.0"
