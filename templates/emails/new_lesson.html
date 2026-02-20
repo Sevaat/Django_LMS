@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Новый урок</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #2196F3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px 5px 0 0;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        .lesson-info {
+            background-color: white;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            text-decoration: none;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>✨ Новый урок доступен!</h1>
+    </div>
+
+    <div class="content">
+        <p>Здравствуйте, <strong>{{ user.first_name|default:user.email }}</strong>!</p>
+
+        <p>В курсе <strong>"{{ course.name }}"</strong> появился новый урок:</p>
+
+        <div class="lesson-info">
+            <h2>{{ lesson.name }}</h2>
+            <p>{{ lesson.description|truncatewords:30 }}</p>
+        </div>
+
+        <p style="text-align: center;">
+            <a href="{{ lesson_url }}" class="button">Посмотреть урок →</a>
+        </p>
+    </div>
+</body>
+</html>

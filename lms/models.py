@@ -17,6 +17,8 @@ class Course(models.Model):
         verbose_name="Владелец",
         help_text="Укажите владельца курса",
     )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
     class Meta:
         verbose_name = "Курс"
@@ -52,6 +54,8 @@ class Lesson(models.Model):
         verbose_name="Владелец",
         help_text="Укажите владельца урока",
     )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
     class Meta:
         verbose_name = "Урок"
