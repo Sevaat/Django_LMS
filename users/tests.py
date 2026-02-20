@@ -1,3 +1,5 @@
+from unittest.mock import patch, MagicMock
+
 from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.urls import reverse
@@ -5,7 +7,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from lms.models import Course
-from users.models import User, Subscription
+from users.models import User, Subscription, Payment
+from users.services import StripeService
 
 
 class SubscriptionTestCase(APITestCase):
@@ -289,3 +292,129 @@ class SubscriptionPermissionsTestCase(APITestCase):
                 course=self.course
             ).exists()
         )
+
+
+class StripeServiceTestCase(TestCase):
+    """
+    Тесты для сервиса Stripe
+    """
+
+    def setUp(self):
+        self.course = Course.objects.create(
+            name='Test Course',
+            description='Test Description'
+        )
+
+    @patch('stripe.Product.create')
+    def test_create_product(self, mock_product_create):
+        """Тест создания продукта в Stripe"""
+        mock_product = MagicMock()
+        mock_product.id = 'prod_test123'
+        mock_product.name = 'Test Course'
+        mock_product_create.return_value = mock_product
+
+        product = StripeService.create_product(
+            name='Test Course',
+            description='Test Description'
+        )
+
+        self.assertEqual(product.id, 'prod_test123')
+        mock_product_create.assert_called_once_with(
+            name='Test Course',
+            description='Test Description',
+            type='good'
+        )
+
+    @patch('stripe.Price.create')
+    def test_create_price(self, mock_price_create):
+        """Тест создания цены в Stripe"""
+        mock_price = MagicMock()
+        mock_price.id = 'price_test123'
+        mock_price.unit_amount = 10000
+        mock_price_create.return_value = mock_price
+
+        price = StripeService.create_price(
+            amount=100.00,
+            currency='rub',
+            product_id='prod_test123'
+        )
+
+        self.assertEqual(price.id, 'price_test123')
+        mock_price_create.assert_called_once_with(
+            unit_amount=10000,
+            currency='rub',
+            product='prod_test123'
+        )
+
+    @patch('stripe.checkout.Session.create')
+    def test_create_checkout_session(self, mock_session_create):
+        """Тест создания сессии оплаты"""
+        mock_session = MagicMock()
+        mock_session.id = 'session_test123'
+        mock_session.url = 'https://checkout.stripe.com/session_test123'
+        mock_session_create.return_value = mock_session
+
+        session = StripeService.create_checkout_session(
+            price_id='price_test123',
+            success_url='http://localhost/success/',
+            cancel_url='http://localhost/cancel/',
+            client_reference_id='1'
+        )
+
+        self.assertEqual(session.id, 'session_test123')
+        mock_session_create.assert_called_once()
+
+
+class PaymentIntegrationTestCase(APITestCase):
+    """
+    Тесты интеграции платежей
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='test@test.com',
+            password='testpass123'
+        )
+
+        self.course = Course.objects.create(
+            name='Test Course',
+            description='Test Description'
+        )
+
+        self.client.force_authenticate(user=self.user)
+        self.payment_url = reverse('users:payment-list')
+
+    @patch('users.views.create_stripe_product')
+    @patch('users.views.create_stripe_price')
+    @patch('users.views.create_stripe_session')
+    def test_create_payment_with_stripe(self, mock_session, mock_price, mock_product):
+        """Тест создания платежа с интеграцией Stripe"""
+        mock_product.return_value = MagicMock(id='prod_test123')
+        mock_price.return_value = MagicMock(id='price_test123')
+
+        mock_session_obj = MagicMock()
+        mock_session_obj.id = 'session_test123'
+        mock_session_obj.url = 'https://checkout.stripe.com/session_test123'
+        mock_session.return_value = mock_session_obj
+
+        data = {
+            'paid_course': self.course.id,
+            'amount': 1000.00,
+            'payment_method': 'card'
+        }
+
+        response = self.client.post(self.payment_url, data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Payment.objects.count(), 1)
+
+        payment = Payment.objects.first()
+        self.assertEqual(payment.stripe_product_id, 'prod_test123')
+        self.assertEqual(payment.stripe_price_id, 'price_test123')
+        self.assertEqual(payment.stripe_session_id, 'session_test123')
+        self.assertEqual(payment.payment_status, 'pending')
+
+    @patch('users.views.StripeService.retrieve_session')
+    def test_check_payment_status(self, mock_retrieve):
+        """Тест проверки статуса платежа"""
+        payment = Payment.objects.create

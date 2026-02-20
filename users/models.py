@@ -35,10 +35,19 @@ class User(AbstractUser):
 class Payment(models.Model):
     CASH = "cash"
     TRANSFER = "transfer"
+    CARD = "card"
 
     PAYMENT_METHODS = (
         (CASH, "Наличные"),
         (TRANSFER, "Перевод на счет"),
+        (CARD, "Банковская карта"),
+    )
+
+    PAYMENT_STATUS = (
+        ('pending', 'Ожидает оплаты'),
+        ('succeeded', 'Оплачено'),
+        ('failed', 'Ошибка оплаты'),
+        ('refunded', 'Возврат'),
     )
 
     user = models.ForeignKey(
@@ -64,12 +73,21 @@ class Payment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Сумма оплаты")
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, verbose_name="Способ оплаты")
 
+    stripe_product_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID продукта в Stripe")
+    stripe_price_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID цены в Stripe")
+    stripe_session_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID сессии в Stripe")
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, null=True,
+                                                verbose_name="ID платежа в Stripe")
+    payment_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="Ссылка на оплату")
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending',
+                                      verbose_name="Статус платежа")
+
     class Meta:
         verbose_name = "Платеж"
         verbose_name_plural = "Платежи"
 
     def __str__(self):
-        return f"{self.user} - {self.amount}"
+        return f"{self.user.email} - {self.amount} - {self.get_payment_status_display()}"
 
 class Subscription(models.Model):
     """Модель подписки пользователя на обновления курса"""
