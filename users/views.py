@@ -1,17 +1,23 @@
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import OrderingFilter
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from lms.models import Course
 from users.filters import PaymentFilter
-from users.models import Payment, User
-from users.serializers import PaymentSerializer, UserProfileSerializer
+from users.models import Payment, User, Subscription
+from users.paginators import UserPaginator, PaymentPaginator, SubscriptionPaginator
+from users.serializers import PaymentSerializer, UserProfileSerializer, SubscriptionSerializer
 
 
 class UserViewSet(ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserProfileSerializer
+    pagination_class = UserPaginator
 
     def get_permissions(self):
         if self.action in ("update", "partial_update", "destroy"):
@@ -30,6 +36,7 @@ class UserViewSet(ModelViewSet):
 class PaymentViewSet(ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
+    pagination_class = PaymentPaginator
 
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = PaymentFilter
@@ -46,3 +53,64 @@ class UserCreateAPIView(CreateAPIView):
         user = serializer.save(is_active=True)
         user.set_password(user.password)
         user.save()
+
+
+class SubscriptionAPIView(APIView):
+    """API view для управления подписками пользователя на курсы"""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        """POST запрос для создания или удаления подписки. Ожидает в теле запроса: {"course_id": 1}"""
+        user = request.user
+        course_id = request.data.get('course_id')
+
+        if not course_id:
+            return Response(
+                {"error": "Не указан ID курса"},
+                status=400
+            )
+
+        course = get_object_or_404(Course, id=course_id)
+
+        subscription = Subscription.objects.filter(user=user, course=course)
+
+        if subscription.exists():
+            subscription.delete()
+            message = 'Подписка удалена'
+            status_code = 200
+        else:
+            Subscription.objects.create(user=user, course=course)
+            message = 'Подписка добавлена'
+            status_code = 201
+
+        return Response(
+            {"message": message, "course_id": course_id},
+            status=status_code
+        )
+
+    def get(self, request, *args, **kwargs):
+        """GET запрос для получения всех подписок пользователя"""
+
+        user = request.user
+        subscriptions = Subscription.objects.filter(user=user)
+
+        paginator = SubscriptionPaginator()
+        page = paginator.paginate_queryset(subscriptions, request)
+
+        if page is not None:
+            serializer = SubscriptionSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = SubscriptionSerializer(subscriptions, many=True)
+        return Response(serializer.data)
+
+class SubscriptionListAPIView(ListAPIView):
+    """Альтернативный вариант с использованием ListAPIView"""
+
+    serializer_class = SubscriptionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = SubscriptionPaginator
+
+    def get_queryset(self):
+        return Subscription.objects.filter(user=self.request.user)
