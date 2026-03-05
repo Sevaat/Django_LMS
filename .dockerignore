@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+*.log
+*.pot
+*.pyc
+local_settings.py
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project
+logs/
+media/
+static/
+*.db
+*.rdb
+
+# Docker
+.dockerignore
+docker-compose*.yml
+docker-compose*.yaml
+
+# Coverage
+.coverage
+htmlcov/
+
+# Mypy
+.mypy_cache/
+
+# Poetry
+poetry.toml
+
+# Test files
+tests/
+**/tests.py
+**/test_*.py
