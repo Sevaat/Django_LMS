@@ -46,9 +46,9 @@ nano .env
 #### Шаг 3: Проверьте свободные порты
 
 ```bash
-# Проверка портов PostgreSQL (5433) и Redis (6380)
-sudo lsof -i :5433
-sudo lsof -i :6380
+# Проверка портов PostgreSQL (5432) и Redis (6379)
+sudo lsof -i :5432
+sudo lsof -i :6379
 
 # Если порты заняты, остановите локальные сервисы:
 sudo systemctl stop postgresql
