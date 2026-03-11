@@ -1,15 +1,16 @@
 import os
+
 import django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
 
 from lms.models import Lesson
-from django.test import TestCase
-from rest_framework.test import APITestCase
 from lms.tests import LessonTestCase
 
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+django.setup()
+
+
 # Создаем экземпляр теста и запускаем setUp
-test = LessonTestCase(methodName='test_lesson_list_authenticated')
+test = LessonTestCase(methodName="test_lesson_list_authenticated")
 test._pre_setup()
 test.setUp()
 

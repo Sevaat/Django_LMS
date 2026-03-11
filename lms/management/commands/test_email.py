@@ -1,16 +1,17 @@
 from django.core.management.base import BaseCommand
-from lms.tasks import send_course_update_notifications
+
 from lms.models import Course
+from lms.tasks import send_course_update_notifications
 
 
 class Command(BaseCommand):
-    help = 'Тестирование отправки email уведомлений'
+    help = "Тестирование отправки email уведомлений"
 
     def add_arguments(self, parser):
-        parser.add_argument('course_id', type=int, help='ID курса для тестирования')
+        parser.add_argument("course_id", type=int, help="ID курса для тестирования")
 
     def handle(self, *args, **options):
-        course_id = options['course_id']
+        course_id = options["course_id"]
 
         try:
             course = Course.objects.get(id=course_id)

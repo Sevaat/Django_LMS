@@ -1,11 +1,11 @@
 import stripe
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
-from rest_framework import status, serializers
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,25 +13,23 @@ from rest_framework.viewsets import ModelViewSet
 
 from lms.models import Course
 from users.filters import PaymentFilter
-from users.models import Payment, User, Subscription
-from users.paginators import UserPaginator, PaymentPaginator, SubscriptionPaginator
-from users.serializers import PaymentSerializer, UserProfileSerializer, SubscriptionSerializer, PaymentStatusSerializer, \
-    PaymentCreateSerializer
-from users.services import StripeService, create_stripe_session, create_stripe_price, create_stripe_product
-
-# from users.tasks import send_payment_reminder
+from users.models import Payment, Subscription, User
+from users.paginators import PaymentPaginator, SubscriptionPaginator, UserPaginator
+from users.serializers import (PaymentCreateSerializer, PaymentSerializer, PaymentStatusSerializer,
+                               SubscriptionSerializer, UserProfileSerializer)
+from users.services import StripeService, create_stripe_price, create_stripe_product, create_stripe_session
 
 
 @extend_schema_view(
     list=extend_schema(
         summary="Список пользователей",
         description="Возвращает список всех пользователей. Доступно только администраторам",
-        tags=['Users']
+        tags=["Users"],
     ),
     retrieve=extend_schema(
         summary="Детальная информация о пользователе",
         description="Возвращает информацию о пользователе. Доступно администраторам или самому пользователю",
-        tags=['Users']
+        tags=["Users"],
     ),
 )
 class UserViewSet(ModelViewSet):
@@ -57,19 +55,19 @@ class UserViewSet(ModelViewSet):
     list=extend_schema(
         summary="Список платежей",
         description="Возвращает список всех платежей с возможностью фильтрации",
-        tags=['Payments'],
+        tags=["Payments"],
     ),
     retrieve=extend_schema(
         summary="Детальная информация о платеже",
         description="Возвращает информацию о конкретном платеже",
-        tags=['Payments']
+        tags=["Payments"],
     ),
     create=extend_schema(
         summary="Создание платежа",
         description="Создает новый платеж и формирует ссылку на оплату через Stripe",
-        tags=['Payments'],
+        tags=["Payments"],
         request=PaymentCreateSerializer,
-        responses={201: PaymentSerializer}
+        responses={201: PaymentSerializer},
     ),
 )
 class PaymentViewSet(ModelViewSet):
@@ -82,7 +80,7 @@ class PaymentViewSet(ModelViewSet):
     ordering = ["pay_date"]
 
     def get_serializer_class(self):
-        if self.action == 'create':
+        if self.action == "create":
             return PaymentCreateSerializer
         return PaymentSerializer
 
@@ -100,10 +98,8 @@ class PaymentViewSet(ModelViewSet):
             # Определяем, что оплачивается (курс или урок)
             if payment.paid_course:
                 item = payment.paid_course
-                item_name = f"Курс: {item.name}"
             else:
                 item = payment.paid_lesson
-                item_name = f"Урок: {item.name}"
 
             # Создаем продукт в Stripe
             product = create_stripe_product(item)
@@ -124,24 +120,18 @@ class PaymentViewSet(ModelViewSet):
             payment.payment_url = session.url
             payment.save()
 
-            # # Планируем отправку напоминания через 1 час
-            # send_payment_reminder.apply_async(
-            #     args=[payment.id],
-            #     countdown=3600  # 1 час в секундах
-            # )
-
         except Exception as e:
-            payment.payment_status = 'failed'
+            payment.payment_status = "failed"
             payment.save()
             raise serializers.ValidationError(f"Ошибка при создании платежа в Stripe: {str(e)}")
 
     @extend_schema(
         summary="Проверка статуса платежа",
         description="Проверяет статус платежа в Stripe и обновляет его в базе данных",
-        tags=['Payments'],
-        responses={200: PaymentStatusSerializer}
+        tags=["Payments"],
+        responses={200: PaymentStatusSerializer},
     )
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def check_status(self, request, pk=None):
         """Проверка статуса платежа"""
         payment = self.get_object()
@@ -152,12 +142,12 @@ class PaymentViewSet(ModelViewSet):
                 session = StripeService.retrieve_session(payment.stripe_session_id)
 
                 # Обновляем статус платежа
-                if session.payment_status == 'paid':
-                    payment.payment_status = 'succeeded'
-                elif session.payment_status == 'unpaid':
-                    payment.payment_status = 'pending'
-                elif session.status == 'expired':
-                    payment.payment_status = 'failed'
+                if session.payment_status == "paid":
+                    payment.payment_status = "succeeded"
+                elif session.payment_status == "unpaid":
+                    payment.payment_status = "pending"
+                elif session.status == "expired":
+                    payment.payment_status = "failed"
 
                 # Сохраняем ID платежного намерения
                 if session.payment_intent:
@@ -167,8 +157,7 @@ class PaymentViewSet(ModelViewSet):
 
             except stripe.error.StripeError as e:
                 return Response(
-                    {"error": f"Ошибка при проверке статуса: {str(e)}"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": f"Ошибка при проверке статуса: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST
                 )
 
         serializer = PaymentStatusSerializer(payment)
@@ -180,7 +169,7 @@ class PaymentViewSet(ModelViewSet):
     description="Создает нового пользователя. Доступно всем (без аутентификации)",
     request=UserProfileSerializer,
     responses={201: UserProfileSerializer},
-    tags=['Auth']
+    tags=["Auth"],
 )
 class UserCreateAPIView(CreateAPIView):
     queryset = User.objects.all()
@@ -197,46 +186,41 @@ class UserCreateAPIView(CreateAPIView):
     post=extend_schema(
         summary="Управление подпиской",
         description="Создает или удаляет подписку на курс",
-        tags=['Subscriptions'],
+        tags=["Subscriptions"],
     ),
     get=extend_schema(
         summary="Список подписок",
         description="Возвращает список подписок текущего пользователя",
-        tags=['Subscriptions'],
+        tags=["Subscriptions"],
     ),
 )
 class SubscriptionAPIView(APIView):
     """
     API view для управления подписками пользователя на курсы
     """
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         user = request.user
-        course_id = request.data.get('course_id')
+        course_id = request.data.get("course_id")
 
         if not course_id:
-            return Response(
-                {"error": "Не указан ID курса"},
-                status=400
-            )
+            return Response({"error": "Не указан ID курса"}, status=400)
 
         course = get_object_or_404(Course, id=course_id)
         subscription = Subscription.objects.filter(user=user, course=course)
 
         if subscription.exists():
             subscription.delete()
-            message = 'Подписка удалена'
+            message = "Подписка удалена"
             status_code = 200
         else:
             Subscription.objects.create(user=user, course=course)
-            message = 'Подписка добавлена'
+            message = "Подписка добавлена"
             status_code = 201
 
-        return Response(
-            {"message": message, "course_id": course_id},
-            status=status_code
-        )
+        return Response({"message": message, "course_id": course_id}, status=status_code)
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -257,10 +241,11 @@ class PaymentSuccessView(APIView):
     """
     View для обработки успешной оплаты (редирект из Stripe)
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
-        session_id = request.GET.get('session_id')
+        session_id = request.GET.get("session_id")
 
         if session_id:
             try:
@@ -271,31 +256,24 @@ class PaymentSuccessView(APIView):
                 payment_id = session.client_reference_id
                 if payment_id:
                     payment = Payment.objects.get(id=payment_id)
-                    payment.payment_status = 'succeeded'
+                    payment.payment_status = "succeeded"
                     payment.save()
 
-                    return Response({
-                        "message": "Платеж успешно выполнен",
-                        "payment_id": payment.id,
-                        "status": "success"
-                    })
+                    return Response(
+                        {"message": "Платеж успешно выполнен", "payment_id": payment.id, "status": "success"}
+                    )
             except Exception as e:
-                return Response({
-                    "error": str(e)
-                }, status=400)
+                return Response({"error": str(e)}, status=400)
 
-        return Response({
-            "message": "Платеж обработан"
-        })
+        return Response({"message": "Платеж обработан"})
 
 
 class PaymentCancelView(APIView):
     """
     View для обработки отмены оплаты (редирект из Stripe)
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
-        return Response({
-            "message": "Платеж отменен"
-        })
+        return Response({"message": "Платеж отменен"})

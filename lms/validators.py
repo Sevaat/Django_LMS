@@ -18,20 +18,20 @@ class YouTubeURLValidator:
             raise ValidationError("Введите корректный URL адрес")
 
         allowed_domains = [
-            'youtube.com',
-            'www.youtube.com',
-            'youtu.be',
-            'www.youtu.be',
-            'm.youtube.com',
-            'youtube-nocookie.com',
-            'www.youtube-nocookie.com'
+            "youtube.com",
+            "www.youtube.com",
+            "youtu.be",
+            "www.youtu.be",
+            "m.youtube.com",
+            "youtube-nocookie.com",
+            "www.youtube-nocookie.com",
         ]
 
         domain = parsed_url.netloc.lower()
 
         is_allowed = False
         for allowed_domain in allowed_domains:
-            if domain == allowed_domain or domain.endswith('.' + allowed_domain):
+            if domain == allowed_domain or domain.endswith("." + allowed_domain):
                 is_allowed = True
                 break
 
@@ -46,10 +46,10 @@ def validate_youtube_url(value):
         return
 
     youtube_patterns = [
-        r'^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+',
-        r'^https?://(?:www\.)?youtu\.be/[\w-]+',
-        r'^https?://(?:www\.)?m\.youtube\.com/watch\?v=[\w-]+',
-        r'^https?://(?:www\.)?youtube-nocookie\.com/embed/[\w-]+'
+        r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
+        r"^https?://(?:www\.)?youtu\.be/[\w-]+",
+        r"^https?://(?:www\.)?m\.youtube\.com/watch\?v=[\w-]+",
+        r"^https?://(?:www\.)?youtube-nocookie\.com/embed/[\w-]+",
     ]
 
     for pattern in youtube_patterns:

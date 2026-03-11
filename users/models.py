@@ -14,7 +14,7 @@ class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         """Создает пользователя с email в качестве основного идентификатора"""
         if not email:
-            raise ValueError('Email must be set')
+            raise ValueError("Email must be set")
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
@@ -23,14 +23,14 @@ class CustomUserManager(BaseUserManager):
 
     def create_superuser(self, email, password=None, **extra_fields):
         """Создает суперпользователя"""
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
 
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Superuser must have is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True.')
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
 
         return self.create_user(email, password, **extra_fields)
 
@@ -74,10 +74,10 @@ class Payment(models.Model):
     )
 
     PAYMENT_STATUS = (
-        ('pending', 'Ожидает оплаты'),
-        ('succeeded', 'Оплачено'),
-        ('failed', 'Ошибка оплаты'),
-        ('refunded', 'Возврат'),
+        ("pending", "Ожидает оплаты"),
+        ("succeeded", "Оплачено"),
+        ("failed", "Ошибка оплаты"),
+        ("refunded", "Возврат"),
     )
 
     user = models.ForeignKey(
@@ -106,11 +106,13 @@ class Payment(models.Model):
     stripe_product_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID продукта в Stripe")
     stripe_price_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID цены в Stripe")
     stripe_session_id = models.CharField(max_length=255, blank=True, null=True, verbose_name="ID сессии в Stripe")
-    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, null=True,
-                                                verbose_name="ID платежа в Stripe")
+    stripe_payment_intent_id = models.CharField(
+        max_length=255, blank=True, null=True, verbose_name="ID платежа в Stripe"
+    )
     payment_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="Ссылка на оплату")
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending',
-                                      verbose_name="Статус платежа")
+    payment_status = models.CharField(
+        max_length=20, choices=PAYMENT_STATUS, default="pending", verbose_name="Статус платежа"
+    )
 
     class Meta:
         verbose_name = "Платеж"
@@ -119,30 +121,20 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.user.email} - {self.amount} - {self.get_payment_status_display()}"
 
+
 class Subscription(models.Model):
     """Модель подписки пользователя на обновления курса"""
 
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        verbose_name="Пользователь",
-        related_name="subscriptions"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, verbose_name="Пользователь", related_name="subscriptions"
     )
-    course = models.ForeignKey(
-        Course,
-        on_delete=models.CASCADE,
-        verbose_name="Курс",
-        related_name="subscriptions"
-    )
-    created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name="Дата подписки"
-    )
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, verbose_name="Курс", related_name="subscriptions")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата подписки")
 
     class Meta:
         verbose_name = "Подписка"
         verbose_name_plural = "Подписки"
-        unique_together = ('user', 'course')
+        unique_together = ("user", "course")
 
     def __str__(self):
         return f"{self.user.email} - {self.course.name}"

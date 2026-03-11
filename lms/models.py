@@ -40,7 +40,7 @@ class Lesson(models.Model):
         verbose_name="Ссылка на видео",
         help_text="Укажите ссылку на видеоматериал",
         blank=True,
-        null=True
+        null=True,
     )
     course = models.ForeignKey(
         Course,
