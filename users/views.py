@@ -19,7 +19,7 @@ from users.serializers import PaymentSerializer, UserProfileSerializer, Subscrip
     PaymentCreateSerializer
 from users.services import StripeService, create_stripe_session, create_stripe_price, create_stripe_product
 
-from users.tasks import send_payment_reminder
+# from users.tasks import send_payment_reminder
 
 
 @extend_schema_view(
@@ -124,11 +124,11 @@ class PaymentViewSet(ModelViewSet):
             payment.payment_url = session.url
             payment.save()
 
-            # Планируем отправку напоминания через 1 час
-            send_payment_reminder.apply_async(
-                args=[payment.id],
-                countdown=3600  # 1 час в секундах
-            )
+            # # Планируем отправку напоминания через 1 час
+            # send_payment_reminder.apply_async(
+            #     args=[payment.id],
+            #     countdown=3600  # 1 час в секундах
+            # )
 
         except Exception as e:
             payment.payment_status = 'failed'

@@ -20,6 +20,7 @@ class SubscriptionTestCase(APITestCase):
         """Подготовка тестовых данных"""
         # Создаем пользователей
         self.user1 = User.objects.create_user(
+            username='user1@test.com',
             email='user1@test.com',
             password='testpass123',
             first_name='User',
@@ -27,6 +28,7 @@ class SubscriptionTestCase(APITestCase):
         )
 
         self.user2 = User.objects.create_user(
+            username='user1@test.com',
             email='user2@test.com',
             password='testpass123',
             first_name='User',
