@@ -9,6 +9,10 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+logs_dir = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 DEBUG = bool(os.getenv("DEBUG"))
@@ -235,7 +239,7 @@ LOGGING = {
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'celery.log'),
             'formatter': 'verbose',
-            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'maxBytes': 1024 * 1024 * 5,
             'backupCount': 5,
         },
     },
@@ -245,12 +249,12 @@ LOGGING = {
     },
     'loggers': {
         'celery': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'] if os.path.exists(logs_dir) else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'users.tasks': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'] if os.path.exists(logs_dir) else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
