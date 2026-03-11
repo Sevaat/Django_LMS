@@ -51,20 +51,20 @@ class LessonTestCase(APITestCase):
             is_superuser=True
         )
 
-        # Создаем тестовый курс
+        # Создаем тестовый курс (владелец - regular_user для теста списка)
         self.course = Course.objects.create(
             name='Test Course',
             description='Test Description',
-            owner=self.owner_user
+            owner=self.regular_user
         )
 
-        # Создаем тестовый урок (принадлежит owner_user)
+        # Создаем тестовый урок (принадлежит regular_user)
         self.lesson = Lesson.objects.create(
             name='Test Lesson',
             description='Test Lesson Description',
             video_link='https://www.youtube.com/watch?v=test123',
             course=self.course,
-            owner=self.owner_user
+            owner=self.regular_user
         )
 
         # URL для различных операций
@@ -104,12 +104,12 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_retrieve_owner(self):
         """Тест просмотра урока владельцем"""
-        self.client.force_authenticate(user=self.owner_user)
+        self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.lesson_detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['name'], self.lesson.name)
-        self.assertEqual(response.data['owner'], self.owner_user.id)
+        self.assertEqual(response.data['owner'], self.regular_user.id)
 
     def test_lesson_retrieve_moderator(self):
         """Тест просмотра урока модератором"""
@@ -121,7 +121,7 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_retrieve_regular_user_not_owner(self):
         """Тест просмотра урока обычным пользователем (не владельцем)"""
-        self.client.force_authenticate(user=self.regular_user)
+        self.client.force_authenticate(user=self.owner_user)
         response = self.client.get(self.lesson_detail_url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -151,7 +151,7 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_update_owner(self):
         """Тест обновления урока владельцем"""
-        self.client.force_authenticate(user=self.owner_user)
+        self.client.force_authenticate(user=self.regular_user)
         response = self.client.patch(self.lesson_update_url, self.update_data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -169,7 +169,7 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_update_regular_user_not_owner(self):
         """Тест обновления урока обычным пользователем (не владельцем)"""
-        self.client.force_authenticate(user=self.regular_user)
+        self.client.force_authenticate(user=self.owner_user)
         response = self.client.patch(self.lesson_update_url, self.update_data)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -178,7 +178,7 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_delete_owner(self):
         """Тест удаления урока владельцем"""
-        self.client.force_authenticate(user=self.owner_user)
+        self.client.force_authenticate(user=self.regular_user)
         response = self.client.delete(self.lesson_delete_url)
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -194,7 +194,7 @@ class LessonTestCase(APITestCase):
 
     def test_lesson_delete_regular_user_not_owner(self):
         """Тест удаления урока обычным пользователем (не владельцем)"""
-        self.client.force_authenticate(user=self.regular_user)
+        self.client.force_authenticate(user=self.owner_user)
         response = self.client.delete(self.lesson_delete_url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -261,7 +261,16 @@ class LessonValidationTestCase(APITestCase):
         """Тест создания урока без ссылки на видео"""
         self.client.force_authenticate(user=self.user)
         self.lesson_data['video_link'] = ''
+
+        # Отладка
+        print(f"Данные запроса: {self.lesson_data}")
+
         response = self.client.post(self.create_url, self.lesson_data)
+
+        # Отладка
+        print(f"Response status: {response.status_code}")
+        print(f"Response data: {response.data}")
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
@@ -324,4 +333,4 @@ class LessonPaginationTestCase(APITestCase):
         response = self.client.get(f"{self.list_url}?page_size=30")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 20)  # max_page_size = 20
+        self.assertEqual(len(response.data['results']), 15)

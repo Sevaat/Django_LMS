@@ -8,7 +8,8 @@ class YouTubeURLValidator:
     """Валидатор для проверки, что ссылка ведет только на YouTube."""
 
     def __call__(self, value):
-        if not isinstance(value, str) or not value:
+        # Разрешаем пустые значения
+        if not value or not isinstance(value, str):
             return
 
         parsed_url = urlparse(value)
@@ -68,9 +69,13 @@ class LinkValidator:
         self.field = field
 
     def __call__(self, value):
-        field_value = value.get(self.field)
+        # value - это словарь данных (для валидации на уровне модели)
+        if isinstance(value, dict):
+            field_value = value.get(self.field)
+        else:
+            field_value = value  # для валидации на уровне поля
 
-        if not field_value:
+        if not field_value or not isinstance(field_value, str):
             return
 
         youtube_validator = YouTubeURLValidator()
