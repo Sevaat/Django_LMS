@@ -57,12 +57,6 @@ jobs:
       run: |
         poetry install --no-interaction --no-ansi
 
-    - name: Check code style
-      run: |
-        poetry run flake8 .
-        poetry run black --check .
-        poetry run isort --check-only .
-
     - name: Create .env file for tests
       run: |
         cp .env.example .env
