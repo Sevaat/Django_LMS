@@ -44,6 +44,11 @@ jobs:
       with:
         python-version: '3.12'
 
+    - name: Install PostgreSQL client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
     - name: Install Poetry
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
@@ -59,24 +64,26 @@ jobs:
 
     - name: Create .env file for tests
       run: |
-        cat > .env << EOF
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        DEBUG=True
-        ALLOWED_HOSTS=localhost,127.0.0.1
-        
-        DATABASE_NAME=lms_db
-        DATABASE_USER=lms_user
-        DATABASE_PASSWORD=lms_password
-        DATABASE_HOST=localhost
-        DATABASE_PORT=5432
-        
-        REDIS_HOST=localhost
-        REDIS_PORT=6379
-        REDIS_DB=0
-        
-        CELERY_BROKER_URL=redis://localhost:6379/0
-        CELERY_RESULT_BACKEND=redis://localhost:6379/0
-        EOF
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+        echo "DEBUG=True" >> .env
+        echo "ALLOWED_HOSTS=localhost" >> .env
+        echo "DATABASE_NAME=lms_db" >> .env
+        echo "DATABASE_USER=lms_user" >> .env
+        echo "DATABASE_PASSWORD=lms_password" >> .env
+        echo "DATABASE_HOST=localhost" >> .env
+        echo "DATABASE_PORT=5432" >> .env
+        echo "REDIS_HOST=localhost" >> .env
+        echo "REDIS_PORT=6379" >> .env
+        echo "REDIS_DB=0" >> .env
+        echo "CELERY_BROKER_URL=redis://localhost:6379/0" >> .env
+        echo "CELERY_RESULT_BACKEND=redis://localhost:6379/0" >> .env
+
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U lms_user -d lms_db; do
+          echo "Waiting for PostgreSQL to be ready..."
+          sleep 2
+        done
 
     - name: Run migrations
       run: |
@@ -86,74 +93,87 @@ jobs:
       run: |
         python manage.py test
 
-#  deploy:
-#    needs: test
-#    runs-on: ubuntu-latest
-#    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-#
-#    steps:
-#    - name: Checkout code
-#      uses: actions/checkout@v4
-#
-#    - name: Copy files to server via rsync
-#      uses: burnett01/rsync-deployments@6.0.0
-#      with:
-#        switches: -avzr --delete --exclude='.env' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.ruff_cache'
-#        path: ./
-#        remote_path: /var/www/lms/
-#        remote_host: ${{ secrets.DEPLOY_HOST }}
-#        remote_user: ${{ secrets.DEPLOY_USER }}
-#        remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
-#
-#    - name: Deploy with Docker Compose
-#      uses: appleboy/ssh-action@v1.0.3
-#      with:
-#        host: ${{ secrets.DEPLOY_HOST }}
-#        username: ${{ secrets.DEPLOY_USER }}
-#        key: ${{ secrets.DEPLOY_SSH_KEY }}
-#        script: |
-#          cd /var/www/lms
-#
-#          # Создаем .env файл из секретов
-#          cat > .env << EOF
-#          SECRET_KEY=${{ secrets.SECRET_KEY }}
-#          DEBUG=False
-#          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-#
-#          DATABASE_NAME=${{ secrets.DATABASE_NAME }}
-#          DATABASE_USER=${{ secrets.DATABASE_USER }}
-#          DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-#          DATABASE_HOST=${{ secrets.DATABASE_HOST }}
-#          DATABASE_PORT=5432
-#
-#          REDIS_HOST=redis
-#          REDIS_PORT=6379
-#          REDIS_DB=0
-#
-#          CELERY_BROKER_URL=redis://redis:6379/0
-#          CELERY_RESULT_BACKEND=redis://redis:6379/0
-#
-#          EMAIL_HOST=${{ secrets.EMAIL_HOST }}
-#          EMAIL_PORT=587
-#          EMAIL_USE_TLS=True
-#          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
-#          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
-#          DEFAULT_FROM_EMAIL=${{ secrets.DEFAULT_FROM_EMAIL }}
-#
-#          STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
-#          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-#          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
-#
-#          SITE_URL=${{ secrets.SITE_URL }}
-#          EOF
-#
-#          # Запускаем контейнеры
-#          docker-compose down
-#          docker-compose pull
-#          docker-compose up -d --build
-#
-#          # Очищаем неиспользуемые образы
-#          docker image prune -f
-#
-#          # Проверяем статус контейнеров
-#          docker-compose ps
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    environment:
+      name: production
+      url: ${{ secrets.SITE_URL }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Copy files to server via rsync
+      uses: burnett01/rsync-deployments@6.0.0
+      with:
+        switches: -avzr --delete --exclude='.env' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.env.*' --exclude='*.sqlite3' --exclude='media'
+        path: ./
+        remote_path: /var/www/lms/
+        remote_host: ${{ secrets.DEPLOY_HOST }}
+        remote_user: ${{ secrets.DEPLOY_USER }}
+        remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+    - name: Deploy with Docker Compose
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_SSH_KEY }}
+        script: |
+          cd /var/www/lms
+          
+          # Создаем .env файл из секретов
+          cat > .env << 'EOF'
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DEBUG=False
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          
+          DATABASE_NAME=${{ secrets.DATABASE_NAME }}
+          DATABASE_USER=${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+          DATABASE_HOST=${{ secrets.DATABASE_HOST }}
+          DATABASE_PORT=5432
+          
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          REDIS_DB=0
+          
+          CELERY_BROKER_URL=redis://redis:6379/0
+          CELERY_RESULT_BACKEND=redis://redis:6379/0
+          
+          EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT=587
+          EMAIL_USE_TLS=True
+          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL=${{ secrets.DEFAULT_FROM_EMAIL }}
+          
+          STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          
+          SITE_URL=${{ secrets.SITE_URL }}
+          EOF
+          
+          # Останавливаем контейнеры
+          docker compose down
+          
+          # Собираем и запускаем контейнеры
+          docker compose up -d --build
+          
+          # Очищаем неиспользуемые образы
+          docker image prune -f
+          
+          # Ждем запуска контейнеров
+          sleep 10
+          
+          # Выполняем миграции
+          docker compose exec -T backend poetry run python manage.py migrate --noinput
+          
+          # Собираем статику
+          docker compose exec -T backend poetry run python manage.py collectstatic --noinput
+          
+          # Проверяем статус контейнеров
+          docker compose ps
