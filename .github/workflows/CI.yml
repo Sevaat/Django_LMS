@@ -96,7 +96,8 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: success()
+    #if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     environment:
       name: production
       #url: ${{ secrets.SITE_URL }}
