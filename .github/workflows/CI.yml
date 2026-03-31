@@ -99,7 +99,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     environment:
       name: production
-      url: ${{ secrets.SITE_URL }}
+      #url: ${{ secrets.SITE_URL }}
 
     steps:
     - name: Checkout code
