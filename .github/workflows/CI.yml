@@ -59,10 +59,24 @@ jobs:
 
     - name: Create .env file for tests
       run: |
-        cp .env.example .env
-        echo "DATABASE_HOST=localhost" >> .env
-        echo "REDIS_HOST=localhost" >> .env
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+        cat > .env << EOF
+        SECRET_KEY=${{ secrets.SECRET_KEY }}
+        DEBUG=True
+        ALLOWED_HOSTS=localhost,127.0.0.1
+        
+        DATABASE_NAME=lms_db
+        DATABASE_USER=lms_user
+        DATABASE_PASSWORD=lms_password
+        DATABASE_HOST=localhost
+        DATABASE_PORT=5432
+        
+        REDIS_HOST=localhost
+        REDIS_PORT=6379
+        REDIS_DB=0
+        
+        CELERY_BROKER_URL=redis://localhost:6379/0
+        CELERY_RESULT_BACKEND=redis://localhost:6379/0
+        EOF
 
     - name: Run migrations
       run: |
