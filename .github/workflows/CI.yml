@@ -96,17 +96,30 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    # Запускаем всегда после успешных тестов, но с проверкой секретов внутри
     if: success()
-    #if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     environment:
-      name: production
-      #url: ${{ secrets.SITE_URL }}
+      name: ${{ github.event_name == 'pull_request' && 'staging' || 'production' }}
+      # url не используем, чтобы избежать ошибки с секретами
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Check if secrets are available for deployment
+      id: check_secrets
+      run: |
+        if [ -z "${{ secrets.DEPLOY_HOST }}" ]; then
+          echo "Secrets not available in this context (likely a PR from fork)"
+          echo "Skipping deployment"
+          echo "skip_deploy=true" >> $GITHUB_OUTPUT
+        else
+          echo "Secrets available, proceeding with deployment"
+          echo "skip_deploy=false" >> $GITHUB_OUTPUT
+        fi
+
     - name: Copy files to server via rsync
+      if: steps.check_secrets.outputs.skip_deploy == 'false'
       uses: burnett01/rsync-deployments@6.0.0
       with:
         switches: -avzr --delete --exclude='.env' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' --exclude='.ruff_cache' --exclude='.env.*' --exclude='*.sqlite3' --exclude='media'
@@ -117,6 +130,7 @@ jobs:
         remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
 
     - name: Deploy with Docker Compose
+      if: steps.check_secrets.outputs.skip_deploy == 'false'
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.DEPLOY_HOST }}
@@ -128,7 +142,7 @@ jobs:
           # Создаем .env файл из секретов
           cat > .env << 'EOF'
           SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=False
+          DEBUG=${{ github.ref == 'refs/heads/main' && 'False' || 'True' }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
           
           DATABASE_NAME=${{ secrets.DATABASE_NAME }}
@@ -178,3 +192,17 @@ jobs:
           
           # Проверяем статус контейнеров
           docker compose ps
+
+    - name: Skip deployment notification
+      if: steps.check_secrets.outputs.skip_deploy == 'true'
+      run: |
+        echo "==========================================="
+        echo "⚠️  DEPLOYMENT SKIPPED"
+        echo "==========================================="
+        echo "Reason: Deployment secrets not available"
+        echo "Context: ${{ github.event_name }} on ${{ github.ref }}"
+        echo ""
+        echo "Deployment will run automatically when:"
+        echo "  - Push to 'develop' or 'main' branches"
+        echo "  - Or when PR is merged from trusted branch"
+        echo "==========================================="
