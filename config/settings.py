@@ -13,9 +13,9 @@ logs_dir = os.path.join(BASE_DIR, 'logs')
 if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY", 'django-insecure-key')
 
-DEBUG = bool(os.getenv("DEBUG"))
+DEBUG = bool(os.getenv('DEBUG', 'False') == 'True')
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
