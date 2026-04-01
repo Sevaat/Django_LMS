@@ -106,85 +106,67 @@ jobs:
       url: https://matsevaat.ru
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup SSH key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-        chmod 600 ~/.ssh/deploy_key
-        eval $(ssh-agent -s)
-        ssh-add ~/.ssh/deploy_key
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Test SSH connection
-      run: |
-        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo 'SSH connection successful'"
+      - name: Test SSH connection
+        run: |
+          ssh -v ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH connection successful' && hostname && whoami"
 
-    - name: Copy files to server via rsync
-      run: |
-        rsync -avzr --delete \
-          -e "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30" \
-          --exclude='.env' \
-          --exclude='.git' \
-          --exclude='__pycache__' \
-          --exclude='*.pyc' \
-          --exclude='.pytest_cache' \
-          --exclude='.ruff_cache' \
-          --exclude='.env.*' \
-          --exclude='*.sqlite3' \
-          --exclude='media' \
-          --exclude='logs' \
-          --exclude='.venv' \
-          ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/lms/
+      - name: Copy files to server via rsync
+        run: |
+          rsync -avzr --delete \
+            -e "ssh -i ~/.ssh/id_ed25519" \
+            --exclude='.env' \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.pytest_cache' \
+            --exclude='.ruff_cache' \
+            --exclude='.env.*' \
+            --exclude='*.sqlite3' \
+            --exclude='media' \
+            --exclude='logs' \
+            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/lms/
 
-    - name: Deploy with Docker Compose
-      run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
-          cd /var/www/lms
+      - name: Deploy with Docker Compose
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+            cd /var/www/lms
           
-          # Создаем .env файл
-          cat > .env << 'ENV_EOF'
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=False
-          DOMAIN=${{ secrets.DOMAIN }}
-          ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }}
+            cat > .env << 'ENV_EOF'
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DEBUG=False
+            DOMAIN=${{ secrets.DOMAIN }}
+            ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }},84.38.183.202
+            DATABASE_NAME=${{ secrets.DATABASE_NAME }}
+            DATABASE_USER=${{ secrets.DATABASE_USER }}
+            DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+            DATABASE_HOST=db
+            DATABASE_PORT=5432
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_DB=0
+            CELERY_BROKER_URL=redis://redis:6379/0
+            CELERY_RESULT_BACKEND=redis://redis:6379/0
+            FLOWER_USER=${{ secrets.FLOWER_USER }}
+            FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
+            SITE_URL=https://${{ secrets.DOMAIN }}
+            ENV_EOF
           
-          DATABASE_NAME=${{ secrets.DATABASE_NAME }}
-          DATABASE_USER=${{ secrets.DATABASE_USER }}
-          DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-          DATABASE_HOST=db
-          DATABASE_PORT=5432
+            mkdir -p nginx ssl logs
           
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          REDIS_DB=0
-          
-          CELERY_BROKER_URL=redis://redis:6379/0
-          CELERY_RESULT_BACKEND=redis://redis:6379/0
-          
-          FLOWER_USER=${{ secrets.FLOWER_USER }}
-          FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
-          
-          SITE_URL=https://${{ secrets.DOMAIN }}
-          ENV_EOF
-          
-          # Создаем директории
-          mkdir -p nginx ssl logs
-          
-          # Запускаем контейнеры
-          docker compose down || true
-          docker compose up -d --build
-          
-          # Ждем запуска
-          sleep 15
-          
-          # Выполняем миграции
-          docker compose exec -T backend poetry run python manage.py migrate --noinput || true
-          
-          # Собираем статику
-          docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
-          
-          # Проверяем статус
-          docker compose ps
-        EOF
+            docker compose down || true
+            docker compose up -d --build
+            sleep 15
+            docker compose exec -T backend poetry run python manage.py migrate --noinput || true
+            docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
+            docker compose ps
+          EOF
