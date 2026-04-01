@@ -135,30 +135,89 @@ jobs:
             --exclude='logs' \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/lms/
 
-      - name: Deploy with Docker Compose
+      - name: Create .env and deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "cd /var/www/lms && rm -f .env && cat > .env << 'EOF'
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=False
-          DOMAIN=${{ secrets.DOMAIN }}
-          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }},localhost,127.0.0.1
-          DATABASE_NAME=${{ secrets.DATABASE_NAME }}
-          DATABASE_USER=${{ secrets.DATABASE_USER }}
-          DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-          DATABASE_HOST=db
-          DATABASE_PORT=5432
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          REDIS_DB=0
-          CELERY_BROKER_URL=redis://redis:6379/0
-          CELERY_RESULT_BACKEND=redis://redis:6379/0
-          FLOWER_USER=${{ secrets.FLOWER_USER }}
-          FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
-          SITE_URL=https://${{ secrets.DOMAIN }}
-          EOF
-          docker compose down || true
-          docker compose up -d --build
-          sleep 15
-          docker compose exec -T backend poetry run python manage.py migrate --noinput || true
-          docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
-          docker compose ps"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'SSH_EOF'
+            cd /var/www/lms
+
+            # Удаляем старый .env
+            rm -f .env
+
+            # Создаем новый .env (без пробелов, с правильными значениями)
+            cat > .env << 'ENV_EOF'
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DEBUG=False
+            DOMAIN=${{ secrets.DOMAIN }}
+            ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }},84.38.183.202,localhost,127.0.0.1
+            DATABASE_NAME=${{ secrets.DATABASE_NAME }}
+            DATABASE_USER=${{ secrets.DATABASE_USER }}
+            DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
+            DATABASE_HOST=db
+            DATABASE_PORT=5432
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_DB=0
+            CELERY_BROKER_URL=redis://redis:6379/0
+            CELERY_RESULT_BACKEND=redis://redis:6379/0
+            FLOWER_USER=${{ secrets.FLOWER_USER }}
+            FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
+            SITE_URL=http://${{ secrets.DOMAIN }}
+            ENV_EOF
+
+            # Проверяем, что нет пробелов в ключах
+            echo "Checking .env syntax..."
+            if grep -n " " .env | grep -v "^#" | grep "=" > /dev/null; then
+              echo "ERROR: Found spaces in .env file"
+              cat .env
+              exit 1
+            fi
+
+            echo "✅ .env file created successfully"
+            cat .env | grep ALLOWED_HOSTS
+
+            # Создаем правильную конфигурацию nginx
+            mkdir -p nginx
+            cat > nginx/nginx.conf << 'NGINX_EOF'
+            server {
+                listen 80;
+                server_name ${{ secrets.DOMAIN }} www.${{ secrets.DOMAIN }} 84.38.183.202;
+
+                location /static/ {
+                    alias /static/;
+                }
+
+                location /media/ {
+                    alias /media/;
+                }
+
+                location / {
+                    proxy_pass http://backend:8000;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                }
+            }
+            NGINX_EOF
+
+            # Останавливаем контейнеры
+            docker compose down || true
+
+            # Запускаем контейнеры
+            docker compose up -d --build
+
+            # Ждем запуска
+            sleep 15
+
+            # Выполняем миграции
+            docker compose exec -T backend poetry run python manage.py migrate --noinput || true
+
+            # Собираем статику
+            docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
+
+            # Проверяем статус
+            docker compose ps
+
+            # Проверяем, что сайт работает
+            echo "Checking if site is working..."
+            docker compose exec -T backend curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ || echo "Health check failed"
+          SSH_EOF
