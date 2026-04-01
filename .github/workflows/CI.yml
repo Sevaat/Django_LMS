@@ -99,8 +99,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    # Деплой только при пуше в основную ветку (не при PR)
-    if: success()
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment:
       name: production
       url: https://matsevaat.ru
@@ -118,12 +117,12 @@ jobs:
 
       - name: Test SSH connection
         run: |
-          ssh -v ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH connection successful' && hostname && whoami"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH connection successful' && hostname && whoami"
 
       - name: Copy files to server via rsync
         run: |
           rsync -avzr --delete \
-            -e "ssh -i ~/.ssh/id_ed25519" \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             --exclude='.env' \
             --exclude='.git' \
             --exclude='__pycache__' \
@@ -138,35 +137,43 @@ jobs:
 
       - name: Deploy with Docker Compose
         run: |
-          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'SSH_EOF'
             cd /var/www/lms
-          
+            
             cat > .env << 'ENV_EOF'
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DEBUG=False
             DOMAIN=${{ secrets.DOMAIN }}
-            ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }},84.38.183.202
+            ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }},localhost,127.0.0.1
+            
             DATABASE_NAME=${{ secrets.DATABASE_NAME }}
             DATABASE_USER=${{ secrets.DATABASE_USER }}
             DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
             DATABASE_HOST=db
             DATABASE_PORT=5432
+            
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_DB=0
+            
             CELERY_BROKER_URL=redis://redis:6379/0
             CELERY_RESULT_BACKEND=redis://redis:6379/0
+            
             FLOWER_USER=${{ secrets.FLOWER_USER }}
             FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
+            
             SITE_URL=https://${{ secrets.DOMAIN }}
             ENV_EOF
-          
-            mkdir -p nginx ssl logs
-          
+            
+            echo "✅ .env file created"
+            
             docker compose down || true
             docker compose up -d --build
+            
             sleep 15
+            
             docker compose exec -T backend poetry run python manage.py migrate --noinput || true
             docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
+            
             docker compose ps
-          EOF
+          SSH_EOF
