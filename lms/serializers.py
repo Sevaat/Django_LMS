@@ -2,7 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from lms.models import Course, Lesson
-from lms.validators import YouTubeURLValidator, LinkValidator, validate_youtube_url
+from lms.validators import LinkValidator
 
 
 class CourseSerializer(ModelSerializer):
@@ -22,9 +22,7 @@ class LessonSerializer(ModelSerializer):
         model = Lesson
         fields = "__all__"
 
-        validators = [
-            LinkValidator(field='video_link')
-        ]
+        validators = [LinkValidator(field="video_link")]
 
 
 class CourseDetailSerializer(ModelSerializer):
@@ -44,7 +42,7 @@ class CourseDetailSerializer(ModelSerializer):
     def get_is_subscribed(self, obj):
         """Проверяет, подписан ли текущий пользователь на этот курс"""
 
-        request = self.context.get('request')
+        request = self.context.get("request")
         if request and request.user.is_authenticated:
             return obj.subscriptions.filter(user=request.user).exists()
         return False

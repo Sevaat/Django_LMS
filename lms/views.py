@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework.generics import CreateAPIView, DestroyAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
@@ -6,18 +6,17 @@ from rest_framework.viewsets import ModelViewSet
 from lms.models import Course, Lesson
 from lms.paginators import CoursePaginator, LessonPaginator
 from lms.serializers import CourseDetailSerializer, CourseSerializer, LessonSerializer
-from users.permissions import IsModer, IsOwner, IsNotModer
-
-from lms.tasks import send_course_update_notifications, update_course_statistics, send_lesson_created_notification
+from lms.tasks import send_course_update_notifications, send_lesson_created_notification, update_course_statistics
+from users.permissions import IsModer, IsNotModer, IsOwner
 
 
 @extend_schema_view(
-    list=extend_schema(summary="Список курсов", tags=['Courses']),
-    retrieve=extend_schema(summary="Детальная информация о курсе", tags=['Courses']),
-    create=extend_schema(summary="Создание курса", tags=['Courses']),
-    update=extend_schema(summary="Полное обновление курса", tags=['Courses']),
-    partial_update=extend_schema(summary="Частичное обновление курса", tags=['Courses']),
-    destroy=extend_schema(summary="Удаление курса", tags=['Courses']),
+    list=extend_schema(summary="Список курсов", tags=["Courses"]),
+    retrieve=extend_schema(summary="Детальная информация о курсе", tags=["Courses"]),
+    create=extend_schema(summary="Создание курса", tags=["Courses"]),
+    update=extend_schema(summary="Полное обновление курса", tags=["Courses"]),
+    partial_update=extend_schema(summary="Частичное обновление курса", tags=["Courses"]),
+    destroy=extend_schema(summary="Удаление курса", tags=["Courses"]),
 )
 class CourseViewSet(ModelViewSet):
     queryset = Course.objects.all()
@@ -52,44 +51,37 @@ class CourseViewSet(ModelViewSet):
         update_course_statistics.delay(course.id)
 
     def get_permissions(self):
-        if self.action == 'create':
+        if self.action == "create":
             self.permission_classes = (IsAuthenticated, IsNotModer)
-        elif self.action in ['destroy']:
+        elif self.action in ["destroy"]:
             self.permission_classes = (IsAuthenticated, IsOwner)
-        elif self.action in ['update', 'partial_update', 'retrieve']:
+        elif self.action in ["update", "partial_update", "retrieve"]:
             self.permission_classes = (IsAuthenticated, IsModer | IsOwner)
-        elif self.action == 'list':
+        elif self.action == "list":
             self.permission_classes = (IsAuthenticated,)
         return super().get_permissions()
 
     pagination_class = CoursePaginator
 
+
 @extend_schema_view(
     get=extend_schema(
         summary="Список уроков",
         description="Возвращает список всех уроков с пагинацией и возможностью фильтрации",
-        tags=['Lessons'],
+        tags=["Lessons"],
         parameters=[
+            OpenApiParameter(name="page", description="Номер страницы", required=False, type=int),
             OpenApiParameter(
-                name='page',
-                description='Номер страницы',
-                required=False,
-                type=int
+                name="page_size", description="Количество элементов на странице", required=False, type=int
             ),
-            OpenApiParameter(
-                name='page_size',
-                description='Количество элементов на странице',
-                required=False,
-                type=int
-            ),
-        ]
+        ],
     ),
     post=extend_schema(
         summary="Создание урока",
         description="Создает новый урок. Доступно только для обычных пользователей (не модераторов)",
-        tags=['Lessons'],
+        tags=["Lessons"],
         request=LessonSerializer,
-        responses={201: LessonSerializer}
+        responses={201: LessonSerializer},
     ),
 )
 class LessonCreateAPIView(CreateAPIView):
@@ -105,11 +97,10 @@ class LessonCreateAPIView(CreateAPIView):
         if lesson.course:
             update_course_statistics.delay(lesson.course.id)
 
+
 @extend_schema_view(
     get=extend_schema(
-        summary="Список уроков",
-        description="Возвращает список всех уроков с пагинацией",
-        tags=['Lessons']
+        summary="Список уроков", description="Возвращает список всех уроков с пагинацией", tags=["Lessons"]
     ),
 )
 class LessonListAPIView(ListAPIView):
@@ -129,28 +120,30 @@ class LessonListAPIView(ListAPIView):
 
         return Lesson.objects.filter(owner=user)
 
+
 @extend_schema_view(
     get=extend_schema(
         summary="Детальная информация об уроке",
         description="Возвращает детальную информацию об уроке. Доступно владельцу или модератору",
-        tags=['Lessons']
+        tags=["Lessons"],
     ),
 )
 class LessonRetrieveAPIView(RetrieveAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
-    permission_classes = (IsAuthenticated, IsOwner)
+    permission_classes = (IsAuthenticated, IsModer | IsOwner)
+
 
 @extend_schema_view(
     put=extend_schema(
         summary="Полное обновление урока",
         description="Полностью обновляет информацию об уроке. Доступно владельцу или модератору",
-        tags=['Lessons']
+        tags=["Lessons"],
     ),
     patch=extend_schema(
         summary="Частичное обновление урока",
         description="Частично обновляет информацию об уроке. Доступно владельцу или модератору",
-        tags=['Lessons']
+        tags=["Lessons"],
     ),
 )
 class LessonUpdateAPIView(UpdateAPIView):
@@ -168,11 +161,10 @@ class LessonUpdateAPIView(UpdateAPIView):
             # Обновляем статистику
             update_course_statistics.delay(lesson.course.id)
 
+
 @extend_schema_view(
     delete=extend_schema(
-        summary="Удаление урока",
-        description="Удаляет урок. Доступно только владельцу",
-        tags=['Lessons']
+        summary="Удаление урока", description="Удаляет урок. Доступно только владельцу", tags=["Lessons"]
     ),
 )
 class LessonDestroyAPIView(DestroyAPIView):

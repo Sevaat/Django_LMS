@@ -8,7 +8,8 @@ class YouTubeURLValidator:
     """Валидатор для проверки, что ссылка ведет только на YouTube."""
 
     def __call__(self, value):
-        if not isinstance(value, str) or not value:
+        # Разрешаем пустые значения
+        if not value or not isinstance(value, str):
             return
 
         parsed_url = urlparse(value)
@@ -17,20 +18,20 @@ class YouTubeURLValidator:
             raise ValidationError("Введите корректный URL адрес")
 
         allowed_domains = [
-            'youtube.com',
-            'www.youtube.com',
-            'youtu.be',
-            'www.youtu.be',
-            'm.youtube.com',
-            'youtube-nocookie.com',
-            'www.youtube-nocookie.com'
+            "youtube.com",
+            "www.youtube.com",
+            "youtu.be",
+            "www.youtu.be",
+            "m.youtube.com",
+            "youtube-nocookie.com",
+            "www.youtube-nocookie.com",
         ]
 
         domain = parsed_url.netloc.lower()
 
         is_allowed = False
         for allowed_domain in allowed_domains:
-            if domain == allowed_domain or domain.endswith('.' + allowed_domain):
+            if domain == allowed_domain or domain.endswith("." + allowed_domain):
                 is_allowed = True
                 break
 
@@ -45,10 +46,10 @@ def validate_youtube_url(value):
         return
 
     youtube_patterns = [
-        r'^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+',
-        r'^https?://(?:www\.)?youtu\.be/[\w-]+',
-        r'^https?://(?:www\.)?m\.youtube\.com/watch\?v=[\w-]+',
-        r'^https?://(?:www\.)?youtube-nocookie\.com/embed/[\w-]+'
+        r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
+        r"^https?://(?:www\.)?youtu\.be/[\w-]+",
+        r"^https?://(?:www\.)?m\.youtube\.com/watch\?v=[\w-]+",
+        r"^https?://(?:www\.)?youtube-nocookie\.com/embed/[\w-]+",
     ]
 
     for pattern in youtube_patterns:
@@ -68,9 +69,13 @@ class LinkValidator:
         self.field = field
 
     def __call__(self, value):
-        field_value = value.get(self.field)
+        # value - это словарь данных (для валидации на уровне модели)
+        if isinstance(value, dict):
+            field_value = value.get(self.field)
+        else:
+            field_value = value  # для валидации на уровне поля
 
-        if not field_value:
+        if not field_value or not isinstance(field_value, str):
             return
 
         youtube_validator = YouTubeURLValidator()

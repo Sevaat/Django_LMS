@@ -36,7 +36,11 @@ class Lesson(models.Model):
         upload_to="lesson/preview", blank=True, null=True, verbose_name="Превью", help_text="Добавьте превью урока"
     )
     video_link = models.CharField(
-        max_length=200, verbose_name="Ссылка на видео", help_text="Укажите ссылку на видеоматериал"
+        max_length=200,
+        verbose_name="Ссылка на видео",
+        help_text="Укажите ссылку на видеоматериал",
+        blank=True,
+        null=True,
     )
     course = models.ForeignKey(
         Course,

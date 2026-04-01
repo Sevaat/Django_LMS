@@ -1,6 +1,5 @@
 import stripe
 from django.conf import settings
-from decimal import Decimal
 
 # Инициализация Stripe с секретным ключом
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -22,17 +21,13 @@ class StripeService:
             stripe.Product: Объект продукта
         """
         try:
-            product = stripe.Product.create(
-                name=name,
-                description=description,
-                type='good'
-            )
+            product = stripe.Product.create(name=name, description=description, type="good")
             return product
         except stripe.error.StripeError as e:
             raise Exception(f"Ошибка создания продукта в Stripe: {str(e)}")
 
     @staticmethod
-    def create_price(amount, currency='rub', product_id=None, product_name=None):
+    def create_price(amount, currency="rub", product_id=None, product_name=None):
         """
         Создание цены для продукта в Stripe
 
@@ -79,12 +74,14 @@ class StripeService:
         """
         try:
             session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                line_items=[{
-                    'price': price_id,
-                    'quantity': 1,
-                }],
-                mode='payment',
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price": price_id,
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
                 success_url=success_url,
                 cancel_url=cancel_url,
                 client_reference_id=client_reference_id,
@@ -144,31 +141,22 @@ class StripeService:
         """
         try:
             # 1. Создаем продукт в Stripe
-            product = StripeService.create_product(
-                name=course.name,
-                description=course.description
-            )
+            product = StripeService.create_product(name=course.name, description=course.description)
 
             # 2. Создаем цену в Stripe
-            price = StripeService.create_price(
-                amount=amount,
-                currency='rub',
-                product_id=product.id
-            )
+            price = StripeService.create_price(amount=amount, currency="rub", product_id=product.id)
 
             # 3. Создаем сессию для оплаты
             session = StripeService.create_checkout_session(
-                price_id=price.id,
-                success_url=success_url,
-                cancel_url=cancel_url
+                price_id=price.id, success_url=success_url, cancel_url=cancel_url
             )
 
             return {
-                'stripe_product_id': product.id,
-                'stripe_price_id': price.id,
-                'stripe_session_id': session.id,
-                'payment_url': session.url,
-                'session': session
+                "stripe_product_id": product.id,
+                "stripe_price_id": price.id,
+                "stripe_session_id": session.id,
+                "payment_url": session.url,
+                "session": session,
             }
         except Exception as e:
             raise Exception(f"Ошибка создания платежа: {str(e)}")
@@ -177,20 +165,13 @@ class StripeService:
 def create_stripe_product(course):
     """Упрощенная функция для создания продукта из курса"""
 
-    return StripeService.create_product(
-        name=course.name,
-        description=course.description
-    )
+    return StripeService.create_product(name=course.name, description=course.description)
 
 
 def create_stripe_price(amount, product_id):
     """Упрощенная функция для создания цены"""
 
-    return StripeService.create_price(
-        amount=amount,
-        currency='rub',
-        product_id=product_id
-    )
+    return StripeService.create_price(amount=amount, currency="rub", product_id=product_id)
 
 
 def create_stripe_session(price_id, payment_id):
@@ -200,8 +181,5 @@ def create_stripe_session(price_id, payment_id):
     cancel_url = "http://localhost:8000/users/payments/cancel/"
 
     return StripeService.create_checkout_session(
-        price_id=price_id,
-        success_url=success_url,
-        cancel_url=cancel_url,
-        client_reference_id=str(payment_id)
+        price_id=price_id, success_url=success_url, cancel_url=cancel_url, client_reference_id=str(payment_id)
     )

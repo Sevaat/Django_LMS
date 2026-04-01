@@ -1,57 +1,62 @@
 import os
 from datetime import timedelta
 from pathlib import Path
+
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+logs_dir = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 DEBUG = bool(os.getenv("DEBUG"))
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost 127.0.0.1 0.0.0.0').split(' ')
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost 127.0.0.1 0.0.0.0").split(" ")
 
-STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
-STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = os.getenv('REDIS_PORT', '6379')
-REDIS_DB = os.getenv('REDIS_DB', '0')
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+REDIS_DB = os.getenv("REDIS_DB", "0")
 
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}')
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "UTC"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
-CELERY_ACCEPT_CONTENT = ['application/json']
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_EXPIRES = 3600  # 1 hour
+CELERY_ACCEPT_CONTENT = ["application/json"]
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_EXPIRES = 3600
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
-from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    'check-inactive-users': {
-        'task': 'users.tasks.deactivate_inactive_users',
-        'schedule': crontab(hour=0, minute=0),
+    "check-inactive-users": {
+        "task": "users.tasks.deactivate_inactive_users",
+        "schedule": crontab(hour=0, minute=0),
     },
-    'check-pending-payments': {
-        'task': 'users.tasks.check_pending_payments',
-        'schedule': timedelta(minutes=30),  # Каждые 30 минут
+    "check-pending-payments": {
+        "task": "users.tasks.check_pending_payments",
+        "schedule": timedelta(minutes=30),  # Каждые 30 минут
     },
-    'clean-expired-subscriptions': {
-        'task': 'users.tasks.clean_expired_subscriptions',
-        'schedule': crontab(hour=2, minute=0),  # Каждый день в 2:00
+    "clean-expired-subscriptions": {
+        "task": "users.tasks.clean_expired_subscriptions",
+        "schedule": crontab(hour=2, minute=0),  # Каждый день в 2:00
     },
-    'send-daily-course-summary': {
-        'task': 'lms.tasks.send_daily_course_summary',
-        'schedule': crontab(hour=8, minute=0),  # Каждый день в 8:00
+    "send-daily-course-summary": {
+        "task": "lms.tasks.send_daily_course_summary",
+        "schedule": crontab(hour=8, minute=0),  # Каждый день в 8:00
     },
 }
 
@@ -62,7 +67,6 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "rest_framework",
     "django_filters",
     "rest_framework_simplejwt",
@@ -70,7 +74,6 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "corsheaders",
     "django_celery_beat",
-
     "lms",
     "users",
 ]
@@ -97,9 +100,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'http://0.0.0.0:8000',
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://0.0.0.0:8000",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -107,7 +110,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [os.path.join(BASE_DIR, 'templates')],
+        "DIRS": [os.path.join(BASE_DIR, "templates")],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -125,11 +128,11 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
-        "NAME": os.getenv("DATABASE_NAME"),
-        "USER": os.getenv("DATABASE_USER"),
-        "PASSWORD": os.getenv("DATABASE_PASSWORD"),
-        "HOST": os.getenv("DATABASE_HOST"),
-        "PORT": os.getenv("DATABASE_PORT"),
+        "NAME": os.getenv("DATABASE_NAME", "lms_db"),
+        "USER": os.getenv("DATABASE_USER", "lms_user"),
+        "PASSWORD": os.getenv("DATABASE_PASSWORD", "lms_password"),
+        "HOST": os.getenv("DATABASE_HOST", "localhost"),
+        "PORT": os.getenv("DATABASE_PORT", "5432"),
     }
 }
 
@@ -183,36 +186,36 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'LMS Platform API',
-    'DESCRIPTION': 'API для платформы управления обучением с курсами, уроками и подписками',
-    'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
-    'COMPONENT_SPLIT_REQUEST': True,
-    'SCHEMA_PATH_PREFIX': '/api/',
-    'SWAGGER_UI_SETTINGS': {
-        'deepLinking': True,
-        'persistAuthorization': True,
-        'displayOperationId': True,
+    "TITLE": "LMS Platform API",
+    "DESCRIPTION": "API для платформы управления обучением с курсами, уроками и подписками",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/",
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "persistAuthorization": True,
+        "displayOperationId": True,
     },
-    'TAGS': [
-        {'name': 'Courses', 'description': 'Управление курсами'},
-        {'name': 'Lessons', 'description': 'Управление уроками'},
-        {'name': 'Users', 'description': 'Управление пользователями'},
-        {'name': 'Payments', 'description': 'Управление платежами'},
-        {'name': 'Subscriptions', 'description': 'Управление подписками'},
-        {'name': 'Auth', 'description': 'Аутентификация и регистрация'},
+    "TAGS": [
+        {"name": "Courses", "description": "Управление курсами"},
+        {"name": "Lessons", "description": "Управление уроками"},
+        {"name": "Users", "description": "Управление пользователями"},
+        {"name": "Payments", "description": "Управление платежами"},
+        {"name": "Subscriptions", "description": "Управление подписками"},
+        {"name": "Auth", "description": "Аутентификация и регистрация"},
     ],
 }
 
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@lms.com')
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@lms.com")
 
-SITE_URL = os.getenv('SITE_URL', 'http://localhost:8000')
+SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
 
 LOGGING = {
     'version': 1,
@@ -233,23 +236,25 @@ LOGGING = {
             'formatter': 'simple',
         },
         'file': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'celery.log'),
             'formatter': 'verbose',
+            'maxBytes': 1024 * 1024 * 5,
+            'backupCount': 5,
         },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console'],
         'level': 'INFO',
     },
     'loggers': {
         'celery': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'file'] if os.path.exists(logs_dir) else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
         'users.tasks': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'file'] if os.path.exists(logs_dir) else ['console'],
             'level': 'INFO',
             'propagate': False,
         },
