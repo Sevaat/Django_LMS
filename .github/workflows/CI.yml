@@ -103,7 +103,7 @@ jobs:
     if: success()
     environment:
       name: production
-      url: https://${{ secrets.DOMAIN }}
+      #url: https://${{ secrets.DOMAIN }}
 
     steps:
     - name: Checkout code
