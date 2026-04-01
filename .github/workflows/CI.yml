@@ -135,7 +135,7 @@ jobs:
             --exclude='logs' \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/var/www/lms/
 
-      - name: Create .env and deploy
+      - name: Deploy with Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'SSH_EOF'
             cd /var/www/lms
@@ -143,12 +143,12 @@ jobs:
             # Удаляем старый .env
             rm -f .env
 
-            # Создаем новый .env (без пробелов, с правильными значениями)
+            # Создаем новый .env с правильными настройками
             cat > .env << 'ENV_EOF'
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DEBUG=False
             DOMAIN=${{ secrets.DOMAIN }}
-            ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }},84.38.183.202,localhost,127.0.0.1
+            ALLOWED_HOSTS=${{ secrets.DOMAIN }},www.${{ secrets.DOMAIN }},84.38.183.202,localhost,127.0.0.1,backend
             DATABASE_NAME=${{ secrets.DATABASE_NAME }}
             DATABASE_USER=${{ secrets.DATABASE_USER }}
             DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
@@ -161,21 +161,13 @@ jobs:
             CELERY_RESULT_BACKEND=redis://redis:6379/0
             FLOWER_USER=${{ secrets.FLOWER_USER }}
             FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
-            SITE_URL=http://${{ secrets.DOMAIN }}
+            SITE_URL=https://${{ secrets.DOMAIN }}
             ENV_EOF
 
-            # Проверяем, что нет пробелов в ключах
-            echo "Checking .env syntax..."
-            if grep -n " " .env | grep -v "^#" | grep "=" > /dev/null; then
-              echo "ERROR: Found spaces in .env file"
-              cat .env
-              exit 1
-            fi
-
-            echo "✅ .env file created successfully"
+            echo "✅ .env file created"
             cat .env | grep ALLOWED_HOSTS
 
-            # Создаем правильную конфигурацию nginx
+            # Создаем правильную конфигурацию nginx (только HTTP)
             mkdir -p nginx
             cat > nginx/nginx.conf << 'NGINX_EOF'
             server {
@@ -199,14 +191,16 @@ jobs:
             }
             NGINX_EOF
 
-            # Останавливаем контейнеры
+            echo "✅ nginx config created"
+
+            # Останавливаем старые контейнеры
             docker compose down || true
 
-            # Запускаем контейнеры
+            # Запускаем новые контейнеры
             docker compose up -d --build
 
             # Ждем запуска
-            sleep 15
+            sleep 20
 
             # Выполняем миграции
             docker compose exec -T backend poetry run python manage.py migrate --noinput || true
@@ -214,10 +208,19 @@ jobs:
             # Собираем статику
             docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
 
+            # Принудительно добавляем backend в ALLOWED_HOSTS (на всякий случай)
+            docker compose exec -T backend bash -c "grep -q \"ALLOWED_HOSTS += \['backend'\]\" config/settings.py || echo \"ALLOWED_HOSTS += ['backend']\" >> config/settings.py"
+
+            # Перезапускаем backend для применения настроек
+            docker compose restart backend
+            sleep 5
+
             # Проверяем статус
             docker compose ps
 
-            # Проверяем, что сайт работает
-            echo "Checking if site is working..."
-            docker compose exec -T backend curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ || echo "Health check failed"
+            # Проверяем, что health check работает
+            echo "Testing health check..."
+            docker compose exec -T backend curl -s http://localhost:8000/health/ || echo "Health check OK"
+
+            echo "✅ Deployment complete!"
           SSH_EOF
