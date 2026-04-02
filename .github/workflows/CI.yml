@@ -107,7 +107,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     environment:
       name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      url: https://${{ secrets.DOMAIN }}
+      url: https://matsevaat.ru
 
     steps:
       - name: Checkout code
