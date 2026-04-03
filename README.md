@@ -1,358 +1,384 @@
-# LMS Platform
+# LMS Project - Learning Management System
 
-Платформа управления обучением с курсами, уроками, подписками и интеграцией платежей через Stripe.
+## 📚 О проекте
 
-## Настройка удаленного сервера
+LMS (Learning Management System) - платформа для онлайн-обучения с возможностью создания курсов, уроков, управления подписками и интеграцией со Stripe.
 
-### Предварительные требования
-- Ubuntu 22.04 или новее
-- Python 3.12
-- Docker и Docker Compose
-- PostgreSQL 15
-- Redis 7
-- Nginx
+### Технологии
 
-### Шаги по настройке сервера
+- **Backend**: Django 5.x, Django REST Framework
+- **База данных**: PostgreSQL 15
+- **Кэш и очереди**: Redis, Celery
+- **Мониторинг**: Flower
+- **Веб-сервер**: Nginx
+- **Контейнеризация**: Docker, Docker Compose
+- **CI/CD**: GitHub Actions
 
-1. **Подключитесь к серверу:**
-   ```bash
-   ssh root@your-server-ip
+---
 
-## 📋 Содержание
-- [Требования](#требования)
-- [Шаги по запуску проекта через docker-compose](#шаги-по-запуску-проекта-через-docker-compose)
-- [Команда для запуска проекта](#команда-для-запуска-проекта)
-- [Проверка работоспособности сервисов](#проверка-работоспособности-сервисов)
-- [Переменные окружения](#переменные-окружения)
-- [Устранение неполадок](#устранение-неполадок)
+## 🚀 Быстрый старт
 
-## 🔧 Требования
+### Локальная разработка
 
-- **Docker** (версия 20.10 или выше)
-- **Docker Compose** (версия 2.0 или выше)
-- **Git**
-- **4+ GB** свободной оперативной памяти
-- **10+ GB** свободного места на диске
-
-Проверка установки:
+1. Клонируйте репозиторий:
 ```bash
-docker --version
-docker-compose --version
-```
-
-## 🚀 Шаги по запуску проекта через docker-compose
-
-#### Шаг 1: Клонируйте репозиторий
-
-```bash
-git clone <your-repository-url>
+git clone https://github.com/Sevaat/Django_LMS.git
 cd Django_LMS
 ```
-
-#### Шаг 2: Настройте переменные окружения
-
+2. Установите Poetry:
 ```bash
-# Скопируйте шаблон .env
+curl -sSL https://install.python-poetry.org | python3 -
+```
+3. Установите зависимости:
+```bash
+poetry install
+```
+4. Создайте файл .env:
+```bash
 cp .env.example .env
-
-# Отредактируйте .env файл
-nano .env
+# Отредактируйте .env под ваши настройки
 ```
-
-#### Шаг 3: Проверьте свободные порты
-
+5. Запустите миграции:
 ```bash
-# Проверка портов PostgreSQL (5432) и Redis (6379)
-sudo lsof -i :5432
-sudo lsof -i :6379
-
-# Если порты заняты, остановите локальные сервисы:
-sudo systemctl stop postgresql
-sudo systemctl stop redis
+python manage.py migrate
 ```
-
-#### Шаг 4: Запустите проект (основная команда)
-
+6. Запустите сервер:
 ```bash
-# Сборка и запуск всех контейнеров
-docker-compose up --build
+python manage.py runserver
 ```
 
-#### Шаг 5: Примените миграции
+## 🖥️ Настройка продакшн-сервера
+Предварительные требования  
+    Ubuntu 22.04/24.04 LTS  
+    Docker и Docker Compose  
+    Домен (опционально)  
 
+1. Подготовка сервера
 ```bash
-# В новом терминале или после нажатия Ctrl+C
-docker-compose exec backend poetry run python manage.py migrate
-```
+# Обновление системы
+sudo apt update && sudo apt upgrade -y
 
-#### Шаг 6: Создайте суперпользователя
-
-```bash
-docker-compose exec backend poetry run python manage.py csu
-# или
-docker-compose exec backend poetry run python manage.py createsuperuser
-```
-
-#### Шаг 7: Соберите статические файлы
-
-```bash
-docker-compose exec backend poetry run python manage.py collectstatic --noinput
-```
-
-## 🎮 Команда для запуска проекта
-
-#### Основная команда запуска
-
-```bash
-# Запуск в интерактивном режиме (с выводом логов)
-docker-compose up --build
-```
-
-#### Основная команда запуска
-
-```bash
-# Запуск в фоновом режиме
-docker-compose up -d --build
-
-# Запуск конкретного сервиса
-docker-compose up -d --build backend
-
-# Перезапуск после изменений
-docker-compose restart
-```
-
-#### Команды для остановки
-
-```bash
-# Остановка без удаления данных
-docker-compose down
-
-# Остановка с полной очисткой
-docker-compose down -v
-```
-
-## ✅ Проверка работоспособности сервисов
-
-#### 1. Django веб-приложение
-
-Проверка через браузер:
-
-    http://localhost:8000 - главная страница
-
-    http://localhost:8000/admin - админ-панель
-
-    http://localhost:8000/api/docs/ - Swagger документация
-
-Проверка через командную строку:
-
-```bash
-curl -I http://localhost:8000
-# Ожидаемый ответ: HTTP/1.1 200 OK
-```
-
-#### 2. PostgreSQL (База данных)
-
-Проверка подключения:
-```bash
-docker-compose exec db pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}
-# Ожидаемый ответ: /var/run/postgresql:5432 - accepting connections
-```
-Проверка списка баз данных:
-```bash
-docker-compose exec db psql -U ${DATABASE_USER} -d ${DATABASE_NAME} -c "\l"
-# Должен отобразиться список баз данных
-```
-Проверка версии:
-```bash
-docker-compose exec db psql -U ${DATABASE_USER} -d ${DATABASE_NAME} -c "SELECT version();"
-```
-
-#### 3. Redis (Кэш и брокер сообщений)
-
-Проверка связи:
-```bash
-docker-compose exec redis redis-cli ping
-# Ожидаемый ответ: PONG
-```
-Проверка статистики:
-```bash
-docker-compose exec redis redis-cli info stats | grep total_commands_processed
-```
-Проверка количества ключей:
-```bash
-docker-compose exec redis redis-cli dbsize
-# Ожидаемый ответ: (integer) 0 или больше
-```
-
-#### 4. Celery Worker (Обработчик задач)
-
-Проверка логов:
-```bash
-docker-compose logs celery | tail -20
-# Ожидаемые строки:
-# - "celery@... ready."
-# - "Connected to redis://redis:6379/0"
-```
-Проверка активных задач:
-```bash
-docker-compose exec celery celery -A config inspect active
-# Ожидаемый ответ: -> active: <empty>
-```
-Проверка статистики воркера:
-```bash
-docker-compose exec celery celery -A config inspect stats | grep "total"
-```
-
-#### 5. Celery Beat (Планировщик задач)
-
-Проверка логов:
-```bash
-docker-compose logs celery-beat | tail -20
-# Ожидаемые строки:
-# - "celery beat v5.6.2 is starting."
-# - "Scheduler: Scheduler sending due tasks"
-```
-Проверка запланированных задач:
-```bash
-docker-compose logs celery-beat | tail -20
-docker-compose exec celery-beat celery -A config beat --info 2>&1 | head -20
-```
-
-#### 6. Flower (Мониторинг Celery)
-
-Проверка через браузер:
-
-    Откройте http://localhost:5555
-
-    Должен открыться веб-интерфейс с графиками и статистикой
-
-Проверка через командную строку:
-```bash
-curl -I http://localhost:5555
-# Ожидаемый ответ: HTTP/1.1 200 OK
-```
-
-#### 7. Комплексная проверка всех сервисов
-
-Проверка статуса контейнеров:
-```bash
-docker-compose ps
-# Ожидаемый вывод - все сервисы со статусом "Up":
-# Name                   Command               State    Ports
-# ------------------------------------------------------------
-# lms_backend     gunicorn config.wsgi:app ...   Up    0.0.0.0:8000->8000/tcp
-# lms_celery      celery -A config worker  ...   Up
-# lms_celery_beat celery -A config beat    ...   Up
-# lms_db          docker-entrypoint.sh postgres  Up    0.0.0.0:5432->5432/tcp
-# lms_flower      celery -A config flower  ...   Up    0.0.0.0:5555->5555/tcp
-# lms_redis       docker-entrypoint.sh redis ... Up    0.0.0.0:6379->6379/tcp
-```
-Проверка использования ресурсов:
-```bash
-docker stats --no-stream
-# Должна отобразиться статистика CPU и памяти для всех контейнеров
-```
-Проверка логов на наличие ошибок:
-```bash
-docker-compose logs --tail=100 | grep -i error
-# Не должно быть критических ошибок
-```
-Проверка сети:
-```bash
-docker network ls | grep django_lms_default
-# Должна быть сеть со статусом "created"
-```
-Проверка томов:
-```bash
-docker volume ls | grep django_lms
-# Должны отобразиться все созданные тома:
-# django_lms_postgres_data
-# django_lms_redis_data
-# django_lms_static_volume
-# django_lms_media_volume
-```
-
-#### 8. Проверка API эндпоинтов
-
-Проверка авторизации:
-```bash
-curl -X POST http://localhost:8000/users/login/ \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@lms.ru","password":"admin"}'
-# Ожидаемый ответ: JSON с access и refresh токенами
-```
-Проверка списка курсов:
-```bash
-curl http://localhost:8000/course/
-# Ожидаемый ответ: JSON список курсов
-```
-
-## 🌍 Переменные окружения
-
-#### Шаблон .env файла
-
-```dotenv
-# Django
-SECRET_KEY=your-secret-key-here
-DEBUG=True
-ALLOWED_HOSTS=localhost 127.0.0.1 0.0.0.0
-
-# Database
-DATABASE_NAME=lms_db
-DATABASE_USER=lms_user
-DATABASE_PASSWORD=your-password
-DATABASE_HOST=db
-DATABASE_PORT=5432
-
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_DB=0
-
-# Celery
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
-
-# Email
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=your-app-password
-
-# Stripe
-STRIPE_PUBLIC_KEY=pk_test_your_key
-STRIPE_SECRET_KEY=sk_test_your_key
-
-# Site
-SITE_URL=http://localhost:8000
-```
-
-## 🔍 Устранение неполадок
-
-#### Проблема: Порты уже заняты
-```bash
-# Решение: остановить локальные сервисы
-sudo systemctl stop postgresql
-sudo systemctl stop redis
-```
-
-#### Проблема: Ошибка подключения к БД
-```bash
-# Решение: создать БД и применить миграции
-docker-compose exec db createdb -U lms_user lms_db
-docker-compose exec backend poetry run python manage.py migrate
-```
-
-#### Проблема: Ошибка прав Docker
-```bash
-# Решение: добавить пользователя в группу docker
+# Установка Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 sudo usermod -aG docker $USER
+
+# Установка Docker Compose
+sudo apt install -y docker-compose-plugin
+
+# Перезагрузитесь или выйдите и зайдите заново для применения прав
 newgrp docker
 ```
-
-#### Проблема: Нет места на диске
+2. Создание директории проекта
 ```bash
-# Решение: очистить неиспользуемые ресурсы Docker
-docker system prune -a -f --volumes
+# Создайте директорию для проекта
+sudo mkdir -p /var/www/lms
+sudo chown -R $USER:$USER /var/www/lms
+
+# Перейдите в директорию
+cd /var/www/lms
+```
+3. Настройка SSH ключей для GitHub Actions
+```bash
+# Создайте SSH ключ для деплоя
+ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/github-actions
+
+# Добавьте публичный ключ в authorized_keys
+cat ~/.ssh/github-actions.pub >> ~/.ssh/authorized_keys
+
+# Проверьте права доступа
+chmod 600 ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+
+# Скопируйте приватный ключ (понадобится для GitHub Secrets)
+cat ~/.ssh/github-actions
+```
+4. Настройка домена и SSL (опционально)
+```bash
+# Установка Certbot
+sudo apt install -y certbot
+
+# Остановите Docker контейнеры, если они запущены
+cd /var/www/lms
+docker compose down
+
+# Получение SSL сертификата
+sudo certbot certonly --standalone -d your-domain.com -d www.your-domain.com
+
+# Копирование сертификатов для Docker
+sudo mkdir -p /var/www/lms/ssl
+sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem /var/www/lms/ssl/
+sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem /var/www/lms/ssl/
+sudo chown -R $USER:$USER /var/www/lms/ssl
+
+# Настройка автоматического обновления сертификатов
+sudo crontab -e
+# Добавьте строку:
+# 0 2 * * * certbot renew --quiet --post-hook "cd /var/www/lms && docker compose restart nginx"
+```
+5. Настройка фаервола
+```bash
+# Базовая защита
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp comment 'SSH'
+sudo ufw allow 80/tcp comment 'HTTP'
+sudo ufw allow 443/tcp comment 'HTTPS'
+sudo ufw --force enable
+
+# Проверка статуса
+sudo ufw status verbose
+```
+6. Создание директорий для логов и медиа
+```bash
+cd /var/www/lms
+mkdir -p logs media static nginx ssl
 ```
 
-Автор: Tkachenko Vsevolod  
-Версия: 1.0.0
+## 🔐 GitHub Secrets
+Для работы CI/CD добавьте следующие секреты в репозиторий (Settings → Secrets and variables → Actions → New repository secret):  
+Обязательные секреты  
+Секрет | Описание  |	Пример  
+DEPLOY_HOST |	IP адрес сервера |	123.123.123.123  
+DEPLOY_USER |	Пользователь на сервере |	ubuntu или root  
+DEPLOY_SSH_KEY |	Приватный SSH ключ |	-----BEGIN OPENSSH PRIVATE KEY-----  
+SECRET_KEY |	Django secret key |	django-insecure-...  
+DOMAIN |	Домен сайта	| lms.your-domain.com  
+DATABASE_NAME |	Имя БД |	lms_db  
+DATABASE_USER |	Пользователь БД	| lms_user  
+DATABASE_PASSWORD |	Пароль БД |	secure-password  
+FLOWER_USER |	Логин для Flower |	admin  
+FLOWER_PASSWORD |	Пароль для Flower |	secure-password  
+
+Управление контейнерами
+```bash
+# Просмотр статуса
+docker compose ps
+
+# Просмотр логов всех сервисов
+docker compose logs -f
+
+# Просмотр логов конкретного сервиса
+docker compose logs -f backend
+
+# Перезапуск всех сервисов
+docker compose restart
+
+# Перезапуск конкретного сервиса
+docker compose restart backend
+
+# Остановка всех сервисов
+docker compose down
+
+# Обновление после изменений
+docker compose up -d --build
+
+# Очистка неиспользуемых образов
+docker image prune -f
+```
+
+## 🌐 Доступ к сервисам
+После успешного деплоя:  
+Сервис	URL  
+Сайт	https://your-domain.com  
+Админка Django	https://your-domain.com/admin  
+Flower (мониторинг Celery)	https://your-domain.com/flower/  
+API документация	https://your-domain.com/api/docs/  
+
+Данные для входа  
+Django Admin: создайте суперпользователя  
+Flower: используйте FLOWER_USER и FLOWER_PASSWORD из секретов  
+
+## 📝 Полезные команды
+Django
+```bash
+# Создание суперпользователя
+docker compose exec backend poetry run python manage.py createsuperuser
+
+# Проверка миграций
+docker compose exec backend poetry run python manage.py showmigrations
+
+# Откат миграций
+docker compose exec backend poetry run python manage.py migrate app_name zero
+
+# Сбор статики вручную
+docker compose exec backend poetry run python manage.py collectstatic --noinput
+
+# Проверка настроек
+docker compose exec backend poetry run python manage.py check --deploy
+```
+База данных
+```bash
+# Подключение к PostgreSQL
+docker compose exec db psql -U lms_user -d lms_db
+
+# Создание бэкапа базы данных
+docker compose exec db pg_dump -U lms_user lms_db > backup_$(date +%Y%m%d).sql
+
+# Восстановление бэкапа
+cat backup.sql | docker compose exec -T db psql -U lms_user lms_db
+
+# Проверка статуса
+docker compose exec db pg_isready -U lms_user
+```
+Redis
+```bash
+# Подключение к Redis
+docker compose exec redis redis-cli
+
+# Проверка ключей
+docker compose exec redis redis-cli KEYS "*"
+
+# Очистка всех ключей (осторожно!)
+docker compose exec redis redis-cli FLUSHALL
+```
+Celery
+```bash
+# Просмотр задач в очереди
+docker compose exec celery poetry run celery -A config inspect active
+
+# Отмена всех задач
+docker compose exec celery poetry run celery -A config purge -f
+
+# Просмотр статуса воркеров
+docker compose exec celery poetry run celery -A config status
+```
+
+## 🔒 Безопасность
+
+Принятые меры  
+    Изоляция сервисов: PostgreSQL, Redis, Flower доступны только внутри Docker сети  
+    Flower: Доступ через basic auth  
+    Nginx: Reverse proxy с SSL/TLS  
+    Firewall: Открыты только порты 22 (SSH), 80 (HTTP), 443 (HTTPS)  
+    Защита от DoS: Лимиты запросов в iptables  
+    SSH: Защита от brute-force через fail2ban  
+
+Рекомендации
+1. Регулярно обновляйте систему:
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+2. Следите за логами:
+```bash
+# Docker логи
+docker compose logs --tail=100
+
+# Системные логи
+sudo tail -f /var/log/auth.log
+```
+3. Настройте автоматическое обновление SSL:
+```bash
+sudo certbot renew --dry-run
+```
+4. Используйте fail2ban для защиты SSH:
+```bash
+sudo apt install fail2ban
+sudo systemctl enable fail2ban
+```
+
+## 🚨 Устранение неполадок
+Проблемы с подключением к серверу
+```bash
+# Проверьте, что сервер доступен
+ping your-server-ip
+
+# Проверьте SSH подключение
+ssh -v user@your-server-ip
+
+# Проверьте фаервол
+sudo ufw status
+
+# Проверьте логи SSH
+sudo tail -f /var/log/auth.log
+```
+Контейнеры не запускаются
+```bash
+# Проверьте логи
+docker compose logs
+
+# Проверьте наличие .env файла
+cat .env
+
+# Проверьте права на директории
+ls -la /var/www/lms
+
+# Пересоберите контейнеры
+docker compose down
+docker compose up -d --build --force-recreate
+```
+База данных недоступна
+```bash
+# Проверьте статус PostgreSQL
+docker compose logs db
+
+# Проверьте подключение
+docker compose exec db pg_isready -U lms_user
+
+# Войдите в БД и проверьте
+docker compose exec db psql -U lms_user -d lms_db -c "\l"
+```
+Миграции не применяются
+```bash
+# Примените миграции вручную
+docker compose exec backend poetry run python manage.py migrate --noinput
+
+# Проверьте, нет ли конфликтов
+docker compose exec backend poetry run python manage.py makemigrations --dry-run
+```
+
+## 📂 Структура проекта
+```text
+Django_LMS/
+├── .github/
+│   └── workflows/
+│       └── CI.yml              # GitHub Actions workflow
+├── nginx/
+│   └── nginx.conf              # Nginx конфигурация
+├── config/                     # Django конфигурация
+├── course/                     # Модуль курсов
+├── users/                      # Модуль пользователей
+├── static/                     # Статические файлы
+├── media/                      # Медиа файлы
+├── logs/                       # Логи приложения
+├── docker-compose.yaml         # Docker Compose конфигурация
+├── Dockerfile                  # Docker образ
+├── pyproject.toml              # Poetry зависимости
+├── .env.example                # Пример .env файла
+└── manage.py                   # Django управляющий скрипт
+```
+
+## 🤝 Вклад в проект
+1. Создайте ветку:
+```bash
+git checkout -b feature/your-feature-name
+```
+2. Внесите изменения и закоммитьте:
+```bash
+git add .
+git commit -m "Add: описание изменений"
+```
+3. Запушите ветку:
+```bash
+git push origin feature/your-feature-name
+```
+4. Создайте Pull Request в ветку develop
+
+Code Style  
+    Python: PEP 8  
+    Django: Официальные рекомендации Django  
+    Коммиты: Следуйте Conventional Commits  
+
+## 📄 Лицензия
+MIT License. Подробнее в файле LICENSE
+
+## 📞 Контакты
+Автор: Ткаченко Всеволод  
+GitHub: https://github.com/Sevaat  
+Проект: https://github.com/Sevaat/Django_LMS  
+
+## 🙏 Благодарности
+Django и Django REST Framework  
+Celery и Redis  
+Docker и GitHub Actions  
+Все контрибьютеры открытого кода  
