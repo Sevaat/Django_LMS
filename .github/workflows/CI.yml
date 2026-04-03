@@ -67,7 +67,7 @@ jobs:
 
     - name: Create .env file for tests
       run: |
-        echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+        echo "SECRET_KEY=${{ secrets.SECRET_KEY || 'test-secret-key' }}" > .env
         echo "DEBUG=True" >> .env
         echo "ALLOWED_HOSTS=localhost" >> .env
         echo "DATABASE_NAME=lms_db" >> .env
@@ -96,12 +96,17 @@ jobs:
       run: |
         python manage.py test
 
+    - name: Build Docker images
+      run: |
+        docker build -t lms-backend-test .
+        docker build -t lms-celery-test .
+
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: success()
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     environment:
-      name: production
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
       url: https://matsevaat.ru
 
     steps:
@@ -139,11 +144,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'SSH_EOF'
             cd /var/www/lms
-
-            # Удаляем старый .env
-            rm -f .env
-
-            # Создаем новый .env с правильными настройками
+            
             cat > .env << 'ENV_EOF'
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DEBUG=False
@@ -163,64 +164,15 @@ jobs:
             FLOWER_PASSWORD=${{ secrets.FLOWER_PASSWORD }}
             SITE_URL=https://${{ secrets.DOMAIN }}
             ENV_EOF
-
-            echo "✅ .env file created"
-            cat .env | grep ALLOWED_HOSTS
-
-            # Создаем правильную конфигурацию nginx (только HTTP)
-            mkdir -p nginx
-            cat > nginx/nginx.conf << 'NGINX_EOF'
-            server {
-                listen 80;
-                server_name ${{ secrets.DOMAIN }} www.${{ secrets.DOMAIN }} 84.38.183.202;
-
-                location /static/ {
-                    alias /static/;
-                }
-
-                location /media/ {
-                    alias /media/;
-                }
-
-                location / {
-                    proxy_pass http://backend:8000;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                }
-            }
-            NGINX_EOF
-
-            echo "✅ nginx config created"
-
-            # Останавливаем старые контейнеры
+            
             docker compose down || true
-
-            # Запускаем новые контейнеры
             docker compose up -d --build
-
-            # Ждем запуска
-            sleep 20
-
-            # Выполняем миграции
+            
+            sleep 15
             docker compose exec -T backend poetry run python manage.py migrate --noinput || true
-
-            # Собираем статику
             docker compose exec -T backend poetry run python manage.py collectstatic --noinput || true
-
-            # Принудительно добавляем backend в ALLOWED_HOSTS (на всякий случай)
             docker compose exec -T backend bash -c "grep -q \"ALLOWED_HOSTS += \['backend'\]\" config/settings.py || echo \"ALLOWED_HOSTS += ['backend']\" >> config/settings.py"
-
-            # Перезапускаем backend для применения настроек
             docker compose restart backend
-            sleep 5
-
-            # Проверяем статус
-            docker compose ps
-
-            # Проверяем, что health check работает
-            echo "Testing health check..."
-            docker compose exec -T backend curl -s http://localhost:8000/health/ || echo "Health check OK"
-
+            
             echo "✅ Deployment complete!"
           SSH_EOF
